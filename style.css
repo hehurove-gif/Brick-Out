@@ -1,0 +1,223 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-1: #07131d;
+  --bg-2: #101f2e;
+  --panel: rgba(11, 21, 30, 0.86);
+  --panel-strong: rgba(14, 23, 33, 0.96);
+  --line: rgba(176, 214, 255, 0.15);
+  --text: #eaf6ff;
+  --muted: #9ab5cb;
+  --accent: #70d1ff;
+  --accent-2: #7ef9b4;
+  --danger: #ff6c6c;
+  --warning: #ffcf5a;
+  --shadow: rgba(7, 17, 24, 0.75);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: Inter, "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(70, 140, 255, 0.12), transparent 45%),
+    linear-gradient(135deg, var(--bg-1), var(--bg-2));
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1080px, calc(100vw - 32px));
+  background: rgba(5, 12, 18, 0.74);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px var(--shadow);
+  padding: 18px 18px 12px;
+  backdrop-filter: blur(10px);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 8px 12px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 2.5rem);
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+button,
+.upload-btn {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+button:hover,
+.upload-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(112, 209, 255, 0.5);
+}
+
+.primary-btn,
+.secondary-btn,
+.upload-btn {
+  min-height: 44px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #5cc7ff, #7de1d0);
+  color: #02161c;
+  border-color: transparent;
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.upload-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.stat-box {
+  background: linear-gradient(180deg, rgba(21, 30, 41, 0.9), rgba(12, 20, 29, 0.8));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 68px;
+}
+
+.stat-box span {
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.stat-box strong {
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+}
+
+.status-box strong {
+  max-width: 120px;
+  text-align: right;
+}
+
+.game-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(3, 8, 12, 0.88);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: radial-gradient(circle at center, rgba(20, 36, 49, 0.8), rgba(6, 12, 18, 1));
+  image-rendering: auto;
+}
+
+.legend {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 6px 6px 0;
+  color: var(--muted);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot.fire { background: #ff6c5f; }
+.dot.wide { background: #7ad9ff; }
+.dot.multi { background: #ffd84d; }
+.dot.life { background: #7ef9b4; }
+.dot.fast { background: #ff9f5a; }
+.dot.sticky { background: #d8a4ff; }
+.dot.chain { background: #7f9dff; }
+.dot.rocket { background: #ff4d85; }
+
+@media (max-width: 720px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar-actions {
+    justify-content: stretch;
+  }
+
+  .hud {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brick Out Web</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Arcade</p>
+          <h1>Brick Out</h1>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="startBtn" class="primary-btn">Iniciar</button>
+          <button id="pauseBtn" class="secondary-btn">Pausa</button>
+          <label class="upload-btn">
+            <input id="imageInput" type="file" accept="image/*" />
+            <span>Importar imagen</span>
+          </label>
+        </div>
+      </header>
+
+      <section class="hud">
+        <div class="stat-box">
+          <span>Puntaje</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="stat-box">
+          <span>Vidas</span>
+          <strong id="lives">3</strong>
+        </div>
+        <div class="stat-box">
+          <span>Nivel</span>
+          <strong id="level">1</strong>
+        </div>
+        <div class="stat-box status-box">
+          <span>Estado</span>
+          <strong id="status">Listo</strong>
+        </div>
+      </section>
+
+      <section class="game-panel">
+        <canvas id="gameCanvas" width="960" height="600"></canvas>
+      </section>
+
+      <section class="legend">
+        <div class="legend-item"><span class="dot fire"></span> Bola de fuego</div>
+        <div class="legend-item"><span class="dot wide"></span> Paleta ancha</div>
+        <div class="legend-item"><span class="dot multi"></span> Bola múltiple</div>
+        <div class="legend-item"><span class="dot life"></span> Vida extra</div>
+        <div class="legend-item"><span class="dot fast"></span> Rápida / lenta</div>
+        <div class="legend-item"><span class="dot sticky"></span> Pala pegajosa</div>
+        <div class="legend-item"><span class="dot chain"></span> Rayo en cadena</div>
+        <div class="legend-item"><span class="dot rocket"></span> Cohetes</div>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
