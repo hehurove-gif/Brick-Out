@@ -3,62 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Brick Out Web</title>
+    <meta name="theme-color" content="#f6f6f3" />
+    <title>Brick Out</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <main class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Arcade</p>
-          <h1>Brick Out</h1>
-        </div>
-
+        <a class="brand" href="#" aria-label="Brick Out inicio">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>brick out</span>
+        </a>
         <div class="topbar-actions">
-          <button id="startBtn" class="primary-btn">Iniciar</button>
-          <button id="pauseBtn" class="secondary-btn">Pausa</button>
           <label class="upload-btn">
             <input id="imageInput" type="file" accept="image/*" />
-            <span>Importar imagen</span>
+            <span>＋ <span class="desktop-label">Importar imagen</span><span class="mobile-label">Imagen</span></span>
           </label>
+          <button id="pauseBtn" class="secondary-btn" type="button">Pausa</button>
+          <button id="startBtn" class="primary-btn" type="button">Iniciar</button>
         </div>
       </header>
 
-      <section class="hud">
-        <div class="stat-box">
-          <span>Puntaje</span>
-          <strong id="score">0</strong>
-        </div>
-        <div class="stat-box">
-          <span>Vidas</span>
-          <strong id="lives">3</strong>
-        </div>
-        <div class="stat-box">
-          <span>Nivel</span>
-          <strong id="level">1</strong>
-        </div>
-        <div class="stat-box status-box">
-          <span>Estado</span>
-          <strong id="status">Listo</strong>
-        </div>
+      <section class="game-heading" aria-label="Estado de la partida">
+        <div class="stat"><span class="stat-label">Puntos</span><strong id="score">0000</strong></div>
+        <div class="stat"><span class="stat-label">Vidas</span><strong id="lives">3</strong></div>
+        <div class="stat"><span class="stat-label">Nivel</span><strong id="level">1</strong></div>
+        <p id="status" class="status" aria-live="polite">Listo para jugar</p>
       </section>
 
-      <section class="game-panel">
-        <canvas id="gameCanvas" width="960" height="600"></canvas>
+      <section class="game-panel" aria-label="Juego Brick Out">
+        <canvas id="gameCanvas" width="960" height="600" aria-label="Campo de juego"></canvas>
       </section>
 
-      <section class="legend">
-        <div class="legend-item"><span class="dot fire"></span> Bola de fuego</div>
-        <div class="legend-item"><span class="dot wide"></span> Paleta ancha</div>
-        <div class="legend-item"><span class="dot multi"></span> Bola múltiple</div>
-        <div class="legend-item"><span class="dot life"></span> Vida extra</div>
-        <div class="legend-item"><span class="dot fast"></span> Rápida / lenta</div>
-        <div class="legend-item"><span class="dot sticky"></span> Pala pegajosa</div>
-        <div class="legend-item"><span class="dot chain"></span> Rayo en cadena</div>
-        <div class="legend-item"><span class="dot rocket"></span> Cohetes</div>
-      </section>
-    </div>
-
+      <footer class="game-footer">
+        <p class="controls-hint">Mueve con el mouse o usa <kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> · <kbd>Espacio</kbd> para lanzar</p>
+        <details class="power-guide">
+          <summary>Power-ups</summary>
+          <p><span>Fuego</span> atraviesa ladrillos · <span>Ancha</span> facilita el rebote · <span>Múltiple</span> añade bolas · <span>Vida</span> +1 (máx. 5) · <span>Rápida / lenta</span> ajusta el ritmo · <span>Pegajosa</span> permite relanzar · <span>Cadena</span> elimina ladrillos del mismo color · <span>Cohetes</span> disparan automáticamente.</p>
+        </details>
+      </footer>
+    </main>
     <script src="script.js"></script>
   </body>
 </html>
