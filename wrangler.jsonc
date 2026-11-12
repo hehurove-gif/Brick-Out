@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "brick-out",
+  "compatibility_date": "2026-06-01",
+  // Sitio estático: solo se publican los archivos de public/ (sin Worker ni build).
+  "assets": {
+    "directory": "./public"
+  }
+}
