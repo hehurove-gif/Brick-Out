@@ -135,34 +135,46 @@ function loadLayout(layout) {
   resetRound();
 }
 
-// Devuelve una lista de especificaciones de ladrillo (no ladrillos vivos) para poder reiniciar el patrón.
+// Material según la luminosidad L* (0–100) del color: oscuro = piedra, claro = cristal.
+function materialForLightness(lightness) {
+  return lightness < 27 ? 'stone' : lightness > 82 ? 'crystal' : lightness > 60 ? 'metal' : 'glass';
+}
+
+// Convierte una imagen en ladrillos. El análisis (paleta, fondo, color dominante por celda) está en
+// image-bricks.js. Devuelve { layout, backgroundRemoved } con especificaciones de ladrillo (no ladrillos
+// vivos, para poder reiniciar el patrón), o null si no queda ningún bloque.
 function generateImageBricks(image) {
   const cols = MODE.portrait ? 8 : 12;
   const rows = MODE.portrait ? 14 : 7;
+  const cell = BrickImage.CELL;
   const sample = document.createElement('canvas');
-  sample.width = cols;
-  sample.height = rows;
+  sample.width = cols * cell;
+  sample.height = rows * cell;
   const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
-  const scale = Math.min(cols / image.width, rows / image.height);
-  const drawW = image.width * scale;
-  const drawH = image.height * scale;
-  sampleCtx.clearRect(0, 0, cols, rows);
-  sampleCtx.drawImage(image, (cols - drawW) / 2, (rows - drawH) / 2, drawW, drawH);
-  const pixels = sampleCtx.getImageData(0, 0, cols, rows).data;
+  // La imagen se ajusta al área de ladrillos y se lee a más resolución que la rejilla.
+  const scale = Math.min(sample.width / image.width, sample.height / image.height);
+  const drawW = Math.max(1, Math.round(image.width * scale));
+  const drawH = Math.max(1, Math.round(image.height * scale));
+  sampleCtx.clearRect(0, 0, sample.width, sample.height);
+  // Al ampliar (pixel art, imágenes pequeñas) no se suaviza, para conservar los bordes nítidos.
+  sampleCtx.imageSmoothingEnabled = scale < 1;
+  sampleCtx.imageSmoothingQuality = 'high';
+  sampleCtx.drawImage(image, Math.round((sample.width - drawW) / 2), Math.round((sample.height - drawH) / 2), drawW, drawH);
+  const pixels = { width: sample.width, height: sample.height, data: sampleCtx.getImageData(0, 0, sample.width, sample.height).data };
+  const { cells, info } = BrickImage.analyze(pixels, cols, rows);
+  if (!cells.length) return null;
+
   const padX = MODE.portrait ? 28 : 34, gap = 8, brickH = 27;
   const brickW = (VIEW.w - padX * 2 - gap * (cols - 1)) / cols;
-  const layout = [];
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      const i = (row * cols + col) * 4;
-      if (pixels[i + 3] < 30) continue;
-      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-      const brightness = (r + g + b) / 3;
-      const material = brightness < 65 ? 'stone' : brightness > 205 ? 'crystal' : brightness > 145 ? 'metal' : 'glass';
-      layout.push({ x: padX + col * (brickW + gap), y: 48 + row * (brickH + gap), w: brickW, h: brickH, material, color: `rgb(${r},${g},${b})` });
-    }
-  }
-  return layout.length ? layout : null;
+  const layout = cells.map((c) => ({
+    x: padX + c.col * (brickW + gap),
+    y: 48 + c.row * (brickH + gap),
+    w: brickW,
+    h: brickH,
+    material: materialForLightness(c.lightness),
+    color: `rgb(${c.r},${c.g},${c.b})`,
+  }));
+  return { layout, backgroundRemoved: info.backgroundRemoved };
 }
 
 // Partida nueva completa. Si hay un patrón importado, se vuelve a usar en lugar del nivel 1 normal.
@@ -572,12 +584,12 @@ ui.image.addEventListener('change', (event) => {
   if (!file) return;
   const image = new Image();
   image.onload = () => {
-    const layout = generateImageBricks(image);
+    const result = generateImageBricks(image);
     URL.revokeObjectURL(image.src);
-    if (!layout) { setStatus('No se encontraron bloques en la imagen'); return; }
-    state.imageLayout = layout;
-    newGame(layout);
-    setStatus(`Imagen convertida · ${layout.length} bloques`);
+    if (!result) { setStatus('No se encontraron bloques en la imagen'); return; }
+    state.imageLayout = result.layout;
+    newGame(result.layout);
+    setStatus(`Imagen convertida · ${result.layout.length} bloques${result.backgroundRemoved ? ' · fondo quitado' : ''}`);
   };
   image.onerror = () => setStatus('No se pudo cargar la imagen');
   image.src = URL.createObjectURL(file);
