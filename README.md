@@ -1,29 +1,42 @@
 # Brick Out
 
-Juego de romper bloques hecho con HTML, CSS y JavaScript, sin dependencias de compilación ni servidor.
+Juego de romper bloques hecho con HTML, CSS y JavaScript, sin dependencias de compilación ni servidor. Los archivos del sitio viven en `public/`.
 
 ## Ejecutar localmente
 
-Abre `index.html` en un navegador o inicia un servidor estático, por ejemplo `python -m http.server 8000`, y visita `http://localhost:8000`.
+Abre `public/index.html` en un navegador o inicia un servidor estático, por ejemplo `python -m http.server 8000 -d public`, y visita `http://localhost:8000`.
 
-## Desplegar en Cloudflare Pages
+## Modo TikTok (fondo para videos)
 
-Este proyecto es un sitio estático: no necesita Workers, funciones, base de datos, Node.js ni proceso de build.
+Agrega parámetros a la URL para grabar el juego como fondo:
 
-### Conectar el repositorio
+| URL | Qué hace |
+| --- | --- |
+| `?tiktok` | Todo junto: vertical 9:16, juega solo, sin interfaz, con efectos |
+| `?auto` | La paleta juega sola; al perder, la partida se reinicia sola |
+| `?clean` | Oculta barra, marcador y pie de página; el canvas se ajusta a la pantalla |
+| `?portrait` | Formato vertical 9:16 |
+| `?juice` | Estela de la pelota, sacudida de pantalla y más partículas |
 
-1. En Cloudflare, ve a **Workers & Pages → Create → Pages → Connect to Git**.
-2. Selecciona `hehurove-gif/Brick-Out` y la rama `main`.
-3. Configura:
-   - **Framework preset:** None
-   - **Build command:** dejar vacío (o `exit 0` si el formulario exige un comando)
-   - **Build output directory:** `/` (raíz del repositorio)
-   - **Root directory:** `/` (predeterminada)
-4. Guarda y despliega. Los siguientes commits en `main` se publicarán automáticamente.
+Los parámetros se pueden combinar (por ejemplo `?auto&clean`). Para grabar, abre `?tiktok` en el celular o en el navegador con tamaño de ventana vertical y usa la grabación de pantalla. Con **P** pausas y con **Espacio** o un toque lanzas manualmente.
 
-También puedes cargar los archivos directamente con Wrangler: `npx wrangler pages deploy .` desde la raíz.
+## Desplegar en Cloudflare
 
-`index.html`, `style.css`, `script.js` y `_headers` deben permanecer en la raíz para que la página y los encabezados se sirvan correctamente. `_headers` define políticas de seguridad y evita cachear de forma prolongada los archivos no versionados. El juego no envía la imagen importada a ningún servidor: se procesa localmente en el navegador.
+Este proyecto es un sitio estático: no necesita funciones, base de datos, Node.js ni proceso de build. `wrangler.jsonc` publica la carpeta `public/`.
+
+### Workers (comandos por defecto de Cloudflare)
+
+1. En Cloudflare, ve a **Workers & Pages → Create → Import a repository** y selecciona `hehurove-gif/Brick-Out`, rama `main`.
+2. Deja el **Build command** vacío.
+3. **Deploy command:** `npx wrangler deploy` (el predeterminado). **Preview command:** `npx wrangler preview`.
+
+También puedes publicar desde tu computadora con `npx wrangler deploy`.
+
+### Pages (alternativa)
+
+Si prefieres Pages: **Framework preset** None, **Build command** vacío y **Build output directory** `public`.
+
+`_headers` (dentro de `public/`) define políticas de seguridad y hace que el navegador revalide los archivos en cada visita. El juego no envía la imagen importada a ningún servidor: se procesa localmente en el navegador.
 
 ## Controles
 
@@ -31,8 +44,8 @@ También puedes cargar los archivos directamente con Wrangler: `npx wrangler pag
 - Flechas izquierda/derecha o A/D: mueve la paleta.
 - Espacio: lanza la pelota o la vuelve a lanzar desde una paleta pegajosa.
 - P: pausa o reanuda.
-- Importar imagen: convierte sus colores en un patrón de ladrillos.
+- Importar imagen: convierte sus colores en un patrón de ladrillos. Si pierdes, **Iniciar** vuelve a empezar con ese mismo patrón.
 
 ## Balance
 
-Los power-ups aparecen con una probabilidad del 11% al romper bloques, con máximo dos objetos en pantalla y al menos cuatro bloques destruidos entre apariciones. La vida extra es poco común y tiene un máximo de cinco vidas. Bola múltiple está limitada a cuatro pelotas; los efectos temporales duran entre siete y ocho segundos. Los ladrillos de materiales resistentes requieren más impactos.
+Los power-ups aparecen con una probabilidad del 11% al romper bloques, con máximo dos objetos en pantalla y al menos cuatro bloques destruidos entre apariciones (el contador se reinicia en cada nivel). La vida extra es poco común y tiene un máximo de cinco vidas. Bola múltiple está limitada a cuatro pelotas; los efectos temporales duran entre siete y ocho segundos. Los ladrillos de materiales resistentes requieren más impactos.

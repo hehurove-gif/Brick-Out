@@ -1,7 +1,6 @@
-/*
-  Cloudflare Pages static-site headers.
-  Keep HTML and unhashed assets revalidating so deployments update immediately.
-*/
+# Cabeceras para sitios estáticos de Cloudflare (Workers Static Assets / Pages).
+# Los comentarios de este archivo usan "#". no-cache hace que el navegador revalide
+# siempre, así cada despliegue se ve de inmediato.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -9,9 +8,3 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
   Cache-Control: no-cache
-
-/style.css
-  Cache-Control: public, max-age=0, must-revalidate
-
-/script.js
-  Cache-Control: public, max-age=0, must-revalidate
