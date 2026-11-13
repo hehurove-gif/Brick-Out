@@ -15,6 +15,13 @@ const ui = {
   popupDesc: document.querySelector('#powerPopupDesc'),
   popupMeta: document.querySelector('#powerPopupMeta'),
   popupBtn: document.querySelector('#powerPopupBtn'),
+  picker: document.querySelector('#imagePicker'),
+  pickerPreview: document.querySelector('#pickerPreview'),
+  pickerCount: document.querySelector('#pickerCount'),
+  pickerGrid: document.querySelector('#pickerGrid'),
+  pickerRange: document.querySelector('#pickerRange'),
+  pickerOk: document.querySelector('#pickerOk'),
+  pickerCancel: document.querySelector('#pickerCancel'),
   cleanTools: document.querySelector('#cleanTools'),
   cleanImport: document.querySelector('#cleanImportBtn'),
   powerList: document.querySelector('#powerList'),
@@ -137,6 +144,7 @@ const state = {
   shake: 0,
   bgT: 0, // reloj del fondo animado (segundos)
   fullscreen: false, fsExitedAt: -1e9,
+  picking: false, // selector de bloques abierto (el juego queda en pausa)
   intro: null, // transición al nivel nuevo: { t, dur }; la pelota se lanza sola al terminar
   modal: false, modalOpenedAt: 0, // aviso de power-up nuevo abierto (el juego queda en pausa)
   autoDelay: null, autoStuck: .45, autoAim: 0,
@@ -246,9 +254,15 @@ function materialForLightness(lightness) {
 // Convierte una imagen en ladrillos. El análisis (paleta, fondo, color dominante por celda) está en
 // image-bricks.js. Devuelve { layout, backgroundRemoved } con especificaciones de ladrillo (no ladrillos
 // vivos, para poder reiniciar el patrón), o null si no queda ningún bloque.
-function generateImageBricks(image) {
-  const cols = MODE.portrait ? 8 : 12;
-  const rows = MODE.portrait ? 14 : 7;
+// `count` es la cantidad de bloques que se busca (la rejilla sigue la forma de la imagen y los bloques son
+// cuadrados, así que sirve para simular píxeles; el resultado puede tener menos si se quita el fondo).
+function gridFor(image, count) {
+  const aspect = clamp(image.width / image.height, .2, 5);
+  const rows = Math.max(1, Math.round(Math.sqrt(count / aspect)));
+  return { cols: Math.max(1, Math.round(count / rows)), rows };
+}
+function generateImageBricks(image, count = 100) {
+  const { cols, rows } = gridFor(image, count);
   const cell = BrickImage.CELL;
   const sample = document.createElement('canvas');
   sample.width = cols * cell;
@@ -267,13 +281,16 @@ function generateImageBricks(image) {
   const { cells, info } = BrickImage.analyze(pixels, cols, rows);
   if (!cells.length) return null;
 
-  const padX = MODE.portrait ? 28 : 34, gap = 8, brickH = 27;
-  const brickW = (VIEW.w - padX * 2 - gap * (cols - 1)) / cols;
+  // Bloques cuadrados que caben en el área de ladrillos, centrados.
+  const padX = MODE.portrait ? 28 : 34;
+  const pitch = Math.min((VIEW.w - padX * 2) / cols, (MODE.portrait ? 520 : 300) / rows);
+  const gap = clamp(pitch * .12, 1.5, 8), size = pitch - gap;
+  const x0 = (VIEW.w - (cols * pitch - gap)) / 2;
   const layout = cells.map((c) => ({
-    x: padX + c.col * (brickW + gap),
-    y: 48 + c.row * (brickH + gap),
-    w: brickW,
-    h: brickH,
+    x: x0 + c.col * pitch,
+    y: 48 + c.row * pitch,
+    w: size,
+    h: size,
     material: materialForLightness(c.lightness),
     color: `rgb(${c.r},${c.g},${c.b})`,
   }));
@@ -637,7 +654,7 @@ function draw() {
     ctx.fillStyle = brick.color;
     ctx.beginPath(); ctx.roundRect(brick.x, brick.y, brick.w, brick.h, 4); ctx.fill();
     ctx.globalAlpha = appear;
-    if (brick.maxHp > 1) {
+    if (brick.maxHp > 1 && brick.w >= 22) {
       // Un segmento por golpe necesario; los que se van gastando quedan apagados.
       const gap = 2;
       const seg = (brick.w - 10 - gap * (brick.maxHp - 1)) / brick.maxHp;
@@ -689,7 +706,7 @@ function draw() {
   ctx.restore();
   drawFullscreenHud();
   // En modo automático no se muestra el cartel entre niveles o reinicios, solo la pausa manual.
-  if (((!state.running && !MODE.auto) || state.paused) && !state.modal) {
+  if (((!state.running && !MODE.auto) || state.paused) && !state.modal && !state.picking) {
     ctx.fillStyle = 'rgb(251 252 250 / 78%)'; ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     ctx.fillStyle = '#28312b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '600 22px system-ui, sans-serif';
@@ -857,6 +874,11 @@ renderPowerList();
 
 window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
+  if (state.picking) { // con el selector abierto solo Esc (cancelar) y Enter (importar); el resto es del selector
+    if (key === 'escape') { event.preventDefault(); closePicker(false); }
+    else if (key === 'enter' && event.target === ui.pickerRange) { event.preventDefault(); closePicker(true); }
+    return;
+  }
   if (state.modal) { // con un aviso abierto, estas teclas lo cierran y las demás no hacen nada
     if ([' ', 'enter', 'escape'].includes(key)) {
       event.preventDefault();
@@ -883,13 +905,13 @@ window.addEventListener('keyup', (event) => {
   if (key === 'arrowright' || key === 'd') state.right = false;
 });
 function togglePause() {
-  if (state.modal || (!state.running && !state.paused)) return;
+  if (state.modal || state.picking || (!state.running && !state.paused)) return;
   state.paused = !state.paused;
   setStatus(state.paused ? 'En pausa' : 'En juego');
   ui.pause.textContent = state.paused ? 'Continuar' : 'Pausa';
 }
 ui.start.addEventListener('click', () => {
-  if (state.modal) return;
+  if (state.modal || state.picking) return;
   if (state.lives <= 0) newGame(state.imageLayout);
   if (state.paused) state.paused = false;
   launch(); ui.pause.textContent = 'Pausa'; updateHud();
@@ -912,17 +934,71 @@ ui.image.addEventListener('change', (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
   const image = new Image();
-  image.onload = () => {
-    const result = generateImageBricks(image);
-    URL.revokeObjectURL(image.src);
-    if (!result) { setStatus('No se encontraron bloques en la imagen'); return; }
-    state.imageLayout = result.layout;
-    newGame(result.layout);
-    setStatus(`Imagen convertida · ${result.layout.length} bloques${result.backgroundRemoved ? ' · fondo quitado' : ''}`);
-  };
-  image.onerror = () => setStatus('No se pudo cargar la imagen');
+  image.onload = () => openPicker(image);
+  image.onerror = () => { URL.revokeObjectURL(image.src); setStatus('No se pudo cargar la imagen'); };
   image.src = URL.createObjectURL(file);
   event.target.value = '';
 });
+
+// --- Selector de cantidad de bloques ---
+// Al elegir una imagen se abre un aviso con un deslizador y una vista previa; el juego queda en pausa.
+const picker = { image: null, result: null, wasPaused: false, timer: 0, count: 100 };
+function drawPickerPreview(layout) {
+  const pv = ui.pickerPreview, pctx = pv.getContext('2d');
+  pctx.clearRect(0, 0, pv.width, pv.height);
+  pctx.fillStyle = '#f2f3ef'; pctx.fillRect(0, 0, pv.width, pv.height);
+  if (!layout || !layout.length) return;
+  const minX = Math.min(...layout.map((b) => b.x)), maxX = Math.max(...layout.map((b) => b.x + b.w));
+  const minY = Math.min(...layout.map((b) => b.y)), maxY = Math.max(...layout.map((b) => b.y + b.h));
+  const k = Math.min((pv.width - 32) / (maxX - minX), (pv.height - 32) / (maxY - minY));
+  const ox = (pv.width - (maxX - minX) * k) / 2 - minX * k, oy = (pv.height - (maxY - minY) * k) / 2 - minY * k;
+  for (const b of layout) {
+    pctx.fillStyle = b.color;
+    pctx.beginPath(); pctx.roundRect(ox + b.x * k, oy + b.y * k, Math.max(1, b.w * k), Math.max(1, b.h * k), Math.min(3, b.w * k / 4)); pctx.fill();
+  }
+}
+function refreshPicker() {
+  const count = Number(ui.pickerRange.value);
+  const { cols, rows } = gridFor(picker.image, count);
+  picker.result = generateImageBricks(picker.image, count);
+  const n = picker.result ? picker.result.layout.length : 0;
+  ui.pickerCount.textContent = n ? `${n} bloques` : 'No se encontraron bloques';
+  ui.pickerGrid.textContent = `· rejilla de ${cols} × ${rows}${picker.result?.backgroundRemoved ? ' · fondo quitado' : ''}`;
+  ui.pickerOk.disabled = !n;
+  drawPickerPreview(picker.result && picker.result.layout);
+}
+function openPicker(image) {
+  picker.image = image;
+  picker.wasPaused = state.paused;
+  state.picking = true; state.paused = true;
+  ui.pickerRange.value = String(picker.count);
+  ui.picker.hidden = false;
+  refreshPicker();
+  ui.pickerRange.focus();
+}
+function closePicker(apply) {
+  if (!state.picking) return;
+  clearTimeout(picker.timer);
+  const result = picker.result;
+  state.picking = false;
+  ui.picker.hidden = true;
+  URL.revokeObjectURL(picker.image.src);
+  picker.image = null; picker.result = null;
+  if (apply && result) {
+    picker.count = Number(ui.pickerRange.value);
+    state.imageLayout = result.layout;
+    newGame(result.layout);
+    setStatus(`Imagen convertida · ${result.layout.length} bloques${result.backgroundRemoved ? ' · fondo quitado' : ''}`);
+  } else {
+    state.paused = picker.wasPaused;
+  }
+}
+ui.pickerRange.addEventListener('input', () => {
+  ui.pickerCount.textContent = `${ui.pickerRange.value} bloques…`;
+  clearTimeout(picker.timer);
+  picker.timer = setTimeout(refreshPicker, 90);
+});
+ui.pickerOk.addEventListener('click', () => closePicker(true));
+ui.pickerCancel.addEventListener('click', () => closePicker(false));
 
 resetPaddle(); buildLevel(); resetBall(); updateHud(); requestAnimationFrame(frame);

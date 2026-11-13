@@ -52,6 +52,21 @@
             <button id="powerPopupBtn" class="primary-btn" type="button">Entendido</button>
           </div>
         </div>
+        <!-- Selector de bloques al importar una imagen. -->
+        <div id="imagePicker" class="power-popup picker" role="dialog" aria-modal="true" aria-labelledby="pickerTitle" hidden>
+          <div class="power-card picker-card">
+            <p class="power-kicker">Importar imagen</p>
+            <h2 id="pickerTitle">¿Cuántos bloques?</h2>
+            <canvas id="pickerPreview" class="picker-preview" width="520" height="300" aria-label="Vista previa"></canvas>
+            <p class="picker-readout"><strong id="pickerCount">100 bloques</strong> <span id="pickerGrid"></span></p>
+            <input id="pickerRange" class="picker-range" type="range" min="20" max="300" step="5" value="100" aria-label="Cantidad de bloques" />
+            <div class="picker-scale"><span>Pocos y grandes</span><span>Más detalle</span></div>
+            <div class="picker-actions">
+              <button id="pickerCancel" type="button">Cancelar</button>
+              <button id="pickerOk" class="primary-btn" type="button">Importar</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <footer class="game-footer">
