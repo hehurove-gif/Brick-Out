@@ -244,8 +244,8 @@ function buildLevel() {
       bricks.push(makeBrick(padX + col * (brickW + gap), 50 + row * (brickH + gap), brickW, brickH, material, toneColor(state.level, tone, hp), tone));
     }
   }
-  // Varios ladrillos de la primera fila (la más cercana a la paleta) llevan un power-up a la vista, que
-  // sueltan al romperse: así el inicio de cada nivel no es monótono.
+  // Algunos ladrillos al azar de la primera fila (la más cercana a la paleta) llevan un power-up oculto, que
+  // sueltan al romperse: así el inicio de cada nivel no es monótono. No se indican en pantalla.
   const firstRow = bricks.slice((rows - 1) * cols);
   const wanted = Math.min(firstRow.length, Math.max(1, Math.round(cols / 4)));
   const taken = [];
@@ -716,13 +716,6 @@ function draw() {
         ctx.fillStyle = i < brick.hp ? 'rgb(255 255 255 / 72%)' : 'rgb(0 0 0 / 14%)';
         ctx.fillRect(brick.x + 5 + i * (seg + gap), brick.y + brick.h - 5, seg, 2.5);
       }
-    }
-    if (brick.power) {
-      // Marca del power-up que lleva: el mismo círculo que caerá al romperlo.
-      ctx.globalAlpha = appear;
-      ctx.fillStyle = POWERUPS[brick.power].color;
-      ctx.beginPath(); ctx.arc(brick.x + brick.w / 2, brick.y + brick.h / 2, Math.min(10, brick.h / 2 - 1), 0, Math.PI * 2); ctx.fill();
-      drawIcon(ctx, brick.power, brick.x + brick.w / 2, brick.y + brick.h / 2, 12);
     }
     ctx.restore();
   }
