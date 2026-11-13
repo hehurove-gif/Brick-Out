@@ -15,6 +15,8 @@ const ui = {
   popupDesc: document.querySelector('#powerPopupDesc'),
   popupMeta: document.querySelector('#powerPopupMeta'),
   popupBtn: document.querySelector('#powerPopupBtn'),
+  cleanTools: document.querySelector('#cleanTools'),
+  cleanImport: document.querySelector('#cleanImportBtn'),
   powerList: document.querySelector('#powerList'),
   powerCount: document.querySelector('#powerCount'),
 };
@@ -893,6 +895,19 @@ ui.start.addEventListener('click', () => {
   launch(); ui.pause.textContent = 'Pausa'; updateHud();
 });
 ui.pause.addEventListener('click', togglePause);
+// En ?clean / ?tiktok no hay barra superior: los atajos (importar imagen, volver al modo normal)
+// aparecen al mover el mouse o tocar el campo y se ocultan solos.
+if (MODE.clean) {
+  let hideTimer = 0;
+  const showTools = () => {
+    ui.cleanTools.classList.toggle('show', true);
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => ui.cleanTools.classList.toggle('show', false), 2600);
+  };
+  fsTarget.addEventListener('pointermove', showTools);
+  fsTarget.addEventListener('pointerdown', showTools);
+  ui.cleanImport.addEventListener('click', () => ui.image.click());
+}
 ui.image.addEventListener('change', (event) => {
   const file = event.target.files?.[0];
   if (!file) return;

@@ -36,6 +36,11 @@
 
       <section class="game-panel" aria-label="Juego Brick Out">
         <canvas id="gameCanvas" width="960" height="600" aria-label="Campo de juego"></canvas>
+        <!-- Solo en ?clean / ?tiktok: la barra superior no existe, así que estos dos atajos aparecen al mover o tocar. -->
+        <div id="cleanTools" class="clean-tools">
+          <button id="cleanImportBtn" type="button">＋ Imagen</button>
+          <a class="tool-link" href="./">Modo normal</a>
+        </div>
         <!-- Aviso de power-up nuevo: va dentro del campo para que también se vea en pantalla completa. -->
         <div id="powerPopup" class="power-popup" role="dialog" aria-modal="true" aria-labelledby="powerPopupName" aria-describedby="powerPopupDesc" hidden>
           <div class="power-card">
