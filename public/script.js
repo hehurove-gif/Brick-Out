@@ -143,6 +143,21 @@ function levelPlan(level) {
     peak: Math.min(5, step + 1),
   };
 }
+// Dificultad por capa, de atrás hacia adelante (y de adelante hacia atrás, es simétrica):
+//   capa 1 muy fácil · 2 fácil · 3 medio · 4 difícil · 5 muy difícil · 6 difícil · 7 medio · 8 fácil · 9 muy fácil
+// La dificultad es la resistencia en golpes (1-5): madera, vidrio, piedra, metal y cristal.
+// Las primeras capas que toca la pelota y las del fondo se rompen fácil; el centro es el reto.
+const LAYER_PROFILE = [1, 2, 3, 4, 5, 4, 3, 2, 1];
+const MATERIAL_BY_HP = ['wood', 'glass', 'stone', 'metal', 'crystal'];
+// Con menos de 9 capas (niveles 1-3) el perfil se estira conservando su forma y se escala al pico del
+// nivel, así el nivel 1 es [1, 2, 1] y el 2 es [1, 2, 3, 2, 1].
+function layerHp(index, layers, peak) {
+  const pos = layers === 1 ? 4 : (index * (LAYER_PROFILE.length - 1)) / (layers - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  const value = LAYER_PROFILE[lo] + (LAYER_PROFILE[hi] - LAYER_PROFILE[lo]) * (pos - lo);
+  return clamp(Math.round(1 + ((value - 1) * (peak - 1)) / 4), 1, MATERIAL_BY_HP.length);
+}
 function buildLevel() {
   const plan = levelPlan(state.level);
   const rows = plan.layers;
@@ -151,10 +166,9 @@ function buildLevel() {
   const padX = MODE.portrait ? 28 : 56;
   const brickW = (VIEW.w - padX * 2 - gap * (cols - 1)) / cols;
   const brickH = 25;
-  const materials = ['wood', 'glass', 'stone', 'metal', 'crystal'].slice(0, plan.peak);
   const bricks = [];
   for (let row = 0; row < rows; row += 1) {
-    const material = materials[Math.min(materials.length - 1, Math.floor(row * materials.length / rows))];
+    const material = MATERIAL_BY_HP[layerHp(row, rows, plan.peak) - 1];
     for (let col = 0; col < cols; col += 1) {
       // Franjas diagonales de 8 tonos: variedad sin que el patrón se vea aleatorio.
       const tone = (col + row * 2) % TONE_COUNT;
