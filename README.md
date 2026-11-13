@@ -44,9 +44,27 @@ Si prefieres Pages: **Framework preset** None, **Build command** vacío y **Buil
 - Flechas izquierda/derecha o A/D: mueve la paleta.
 - Espacio: lanza la pelota o la vuelve a lanzar desde una paleta pegajosa.
 - P: pausa o reanuda.
+- F o el botón **Pantalla completa**: entra y sale de pantalla completa (Esc también sale). En pantalla completa, tocar la pantalla reanuda una pausa.
 - Importar imagen: convierte sus colores en un patrón de ladrillos. Si pierdes, **Iniciar** vuelve a empezar con ese mismo patrón.
   - La detección (`public/image-bricks.js`) está adaptada de SVG-Converter: compara colores en espacio Lab, arma la paleta solo con zonas de color plano (los bordes suavizados y el ruido JPEG no crean colores falsos), quita el fondo parejo conectado con el borde y asigna a cada ladrillo el color dominante de su celda. Las imágenes con transparencia (PNG) se respetan tal cual.
   - Funciona mejor con logos, personajes e ilustraciones con fondo liso. Los detalles más pequeños que un ladrillo (ojos, texto fino) se pierden por la resolución de la rejilla.
+
+## Niveles y dificultad
+
+El tamaño del nivel crece poco a poco para que el primero sea corto:
+
+| Nivel | Capas | Columnas | Golpes en total | Resistencia máxima |
+| --- | --- | --- | --- | --- |
+| 1 | 3 | 7 | 28 | 2 |
+| 2 | 5 | 8 | 72 | 3 |
+| 3 | 7 | 8 | 128 | 4 |
+| 4 en adelante | 9 | 8 | 200 | 5 |
+
+La dificultad va por capas: las primeras y las del fondo se rompen fácil y el centro es el reto. En el nivel completo es **muy fácil, fácil, medio, difícil, muy difícil, difícil, medio, fácil, muy fácil** (1-2-3-4-5-4-3-2-1 golpes). Cada ladrillo muestra un segmento por golpe necesario; el color solo es decorativo (8 tonos por nivel, que cambian de paleta en cada nivel). Todo se ajusta en `levelPlan` y `LAYER_PROFILE` de `public/script.js`.
+
+## Power-ups
+
+La primera vez que consigues un power-up, el juego se pausa y aparece una tarjeta que explica qué hace (se cierra con Espacio, Enter, un toque o el botón). Se registra en tu navegador y la lista **Power-ups** del pie de página marca los que ya descubriste. En `?tiktok`, `?auto` y `?clean` no hay avisos ni registro.
 
 ## Balance
 
