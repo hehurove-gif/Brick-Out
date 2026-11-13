@@ -140,6 +140,7 @@ const state = {
   effects: { fire: 0, sticky: 0, chain: 0, rockets: 0 },
   rocketCooldown: 0, lastTime: 0, status: 'Listo para jugar',
   lastDropAt: 0, bricksDestroyed: 0,
+  sinceHit: 0, // segundos desde que una pelota tocó la paleta por última vez
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   bgT: 0, // reloj del fondo animado (segundos)
@@ -181,6 +182,7 @@ function resetRound() {
   state.rockets = [];
   state.bricksDestroyed = 0;
   state.lastDropAt = 0;
+  state.sinceHit = 0;
 }
 // `tone` identifica el color para el power-up Cadena: los ladrillos con el mismo tono se encadenan
 // aunque su resistencia (y por tanto su matiz) sea distinta. Si no se da, se usa el color.
@@ -321,9 +323,14 @@ function chooseDrop() {
   }
   return 'wide';
 }
+// Probabilidad de soltar power-up al romper un ladrillo: 11 % base, y sube 3 puntos por cada segundo que la
+// pelota lleva rebotando sin tocar la paleta (pasados los 2 primeros), hasta un máximo de 45 %.
+function dropChance() {
+  return .11 + Math.min(.34, Math.max(0, state.sinceHit - 2) * .03);
+}
 function maybeDrop(brick) {
-  // 11% por ladrillo destruido, con máximo 2 objetos simultáneos y 4 ladrillos entre drops.
-  if (state.drops.length >= 2 || state.bricksDestroyed - state.lastDropAt < 4 || Math.random() > 0.11) return;
+  // Máximo 2 objetos simultáneos y 4 ladrillos entre drops.
+  if (state.drops.length >= 2 || state.bricksDestroyed - state.lastDropAt < 4 || Math.random() > dropChance()) return;
   state.lastDropAt = state.bricksDestroyed;
   state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, r: 13, vy: 115, type: chooseDrop() });
 }
@@ -541,6 +548,7 @@ function updateBalls(dt) {
     const p = state.paddle;
     if (ball.vy > 0 && ball.y + ball.r >= p.y && ball.y - ball.r <= p.y + p.height && ball.x >= p.x && ball.x <= p.x + p.width) {
       state.autoAim = (Math.random() - .5) * p.width * .7;
+      state.sinceHit = 0;
       if (state.effects.sticky > 0) { ball.stuck = true; ball.vx = 0; ball.vy = 0; }
       else {
         const offset = clamp((ball.x - (p.x + p.width / 2)) / (p.width / 2), -.88, .88);
@@ -599,6 +607,7 @@ function updateParticles(dt) {
 function launch() {
   if (state.intro) return; // durante la transición de nivel el lanzamiento es automático
   if (!state.running) { state.running = true; state.paused = false; }
+  state.sinceHit = 0;
   const speed = LAUNCH_SPEED;
   let direction = Math.random() > .5 ? 1 : -1;
   state.balls.filter((item) => item.stuck).forEach((ball, i) => {
@@ -767,6 +776,7 @@ function frame(timestamp) {
     if (state.intro) updateIntro(dt);
     else {
       movePaddle(dt); advanceEffects(dt); updateBalls(dt); updateDrops(dt); updateRockets(dt);
+      state.sinceHit += dt;
       if (state.bricks.length === 0 && state.lives > 0) advanceLevel();
     }
   }
