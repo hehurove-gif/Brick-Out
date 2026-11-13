@@ -143,6 +143,7 @@ const state = {
   effects: { fire: 0, sticky: 0, chain: 0, rockets: 0 },
   rocketCooldown: 0, lastTime: 0, status: 'Listo para jugar',
   lastDropAt: 0, bricksDestroyed: 0,
+  totalBricks: 0, // ladrillos con los que empezó el nivel (para apagar la tendencia a los bordes)
   sinceHit: 0, // segundos desde que una pelota tocó la paleta por última vez
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
@@ -254,10 +255,12 @@ function buildLevel() {
   }
   taken.forEach((col) => { firstRow[col].power = chooseDrop(); });
   state.bricks = bricks;
+  state.totalBricks = bricks.length;
   resetRound();
 }
 function loadLayout(layout) {
   state.bricks = layout.map((s) => makeBrick(s.x, s.y, s.w, s.h, s.material, s.color));
+  state.totalBricks = state.bricks.length;
   resetRound();
 }
 
@@ -515,6 +518,16 @@ function collideBallWithBrick(ball, brick) {
   }
   return true;
 }
+// Al rebotar en la paleta, la pelota sale siempre en línea recta, pero con una ligera tendencia a los bordes
+// (un poco más abierta hacia el lado en el que está), para que a veces llegue al fondo por los pasillos
+// laterales. No curva su trayectoria. La tendencia solo existe si hay pasillo libre y se apaga sola cuando
+// quedan pocos ladrillos, para que nunca estorbe al terminar el nivel.
+function sideBias(ball) {
+  if (!state.totalBricks || !sideLanes()) return 0;
+  const left = clamp((state.bricks.length / state.totalBricks - .3) / .4, 0, 1);
+  const side = ball.x === VIEW.w / 2 ? (Math.random() < .5 ? -1 : 1) : Math.sign(ball.x - VIEW.w / 2);
+  return side * left * (.1 + Math.random() * .14);
+}
 // Pasillos libres a los lados de los ladrillos (si caben): centro de cada uno y borde inferior del campo.
 function sideLanes() {
   if (!state.bricks.length) return null;
@@ -530,21 +543,7 @@ function sideLanes() {
   if (VIEW.w - maxX >= need) lanes.push((maxX + VIEW.w) / 2);
   return lanes.length ? { lanes, bottom } : null;
 }
-// Tendencia suave: al subir por debajo de los ladrillos, la pelota se desvía hacia el pasillo lateral más
-// cercano. Así a veces llega al fondo del campo y rompe las capas desde atrás. La rapidez no cambia.
-const SIDE_PULL = 380;
-function steerToSides(ball, dt, field) {
-  if (!field || ball.vy >= 0 || ball.y < field.bottom + 12) return;
-  const lane = field.lanes.reduce((best, x) => (Math.abs(x - ball.x) < Math.abs(best - ball.x) ? x : best));
-  const dx = lane - ball.x;
-  if (Math.abs(dx) < 10) return;
-  const speed = Math.hypot(ball.vx, ball.vy);
-  const vx = clamp(ball.vx + Math.sign(dx) * SIDE_PULL * dt, -speed * .8, speed * .8);
-  ball.vx = vx;
-  ball.vy = -Math.sqrt(speed * speed - vx * vx);
-}
 function updateBalls(dt) {
-  const field = sideLanes();
   for (const ball of [...state.balls]) {
     if (ball.stuck) {
       ball.x = state.paddle.x + state.paddle.width / 2;
@@ -556,7 +555,6 @@ function updateBalls(dt) {
       ball.trail.push({ x: ball.x, y: ball.y });
       if (ball.trail.length > 9) ball.trail.shift();
     }
-    steerToSides(ball, dt, field);
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
@@ -570,7 +568,7 @@ function updateBalls(dt) {
       else {
         const offset = clamp((ball.x - (p.x + p.width / 2)) / (p.width / 2), -.88, .88);
         const speed = clamp(Math.hypot(ball.vx, ball.vy), 230, SPEED_MAX);
-        const angle = offset * 1.05;
+        const angle = clamp(offset * 1.05 + sideBias(ball), -1.15, 1.15);
         ball.vx = speed * Math.sin(angle);
         ball.vy = -speed * Math.cos(angle);
         ball.y = p.y - ball.r - 1;
