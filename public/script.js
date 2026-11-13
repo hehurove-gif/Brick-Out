@@ -33,13 +33,16 @@ const ui = {
 //   ?auto     la paleta juega sola y la partida se reinicia al perder
 //   ?clean    oculta barra, marcador y pie de página
 //   ?portrait formato vertical 9:16
-//   ?juice    estela de la pelota, sacudida de pantalla y más partículas
+//   ?juice    estela de la pelota, sacudida de pantalla y más partículas (ya van activas; ?nojuice las quita)
 const params = new URLSearchParams(window.location.search);
 const MODE = { tiktok: params.has('tiktok') };
 MODE.auto = MODE.tiktok || params.has('auto');
 MODE.clean = MODE.tiktok || params.has('clean');
 MODE.portrait = MODE.tiktok || params.has('portrait');
-MODE.juice = MODE.auto || params.has('juice');
+// Los efectos (estela, sacudida y más partículas) van activos siempre, salvo con ?nojuice o si el sistema
+// pide reducir el movimiento; ?juice los fuerza aunque el sistema pida reducirlo.
+const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+MODE.juice = MODE.auto || params.has('juice') || !(params.has('nojuice') || reduceMotion);
 
 // Tamaño lógico del juego; el canvas real se escala por devicePixelRatio para verse nítido.
 const VIEW = MODE.portrait ? { w: 540, h: 960 } : { w: 960, h: 600 };

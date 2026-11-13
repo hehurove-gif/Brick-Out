@@ -16,7 +16,8 @@ Agrega parámetros a la URL para grabar el juego como fondo:
 | `?auto` | La paleta juega sola; al perder, la partida se reinicia sola |
 | `?clean` | Oculta barra, marcador y pie de página; el canvas se ajusta a la pantalla |
 | `?portrait` | Formato vertical 9:16 |
-| `?juice` | Estela de la pelota, sacudida de pantalla y más partículas |
+| `?juice` | Estela de la pelota, sacudida de pantalla y más partículas (ya vienen activas en el modo normal) |
+| `?nojuice` | Quita esos efectos (también se quitan solos si el sistema pide reducir el movimiento) |
 
 Los parámetros se pueden combinar (por ejemplo `?auto&clean`). Para grabar, abre `?tiktok` en el celular o en el navegador con tamaño de ventana vertical y usa la grabación de pantalla. Con **P** pausas y con **Espacio** o un toque lanzas manualmente.
 
