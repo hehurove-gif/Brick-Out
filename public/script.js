@@ -7,6 +7,7 @@ const ui = {
   status: document.querySelector('#status'),
   start: document.querySelector('#startBtn'),
   pause: document.querySelector('#pauseBtn'),
+  fullscreen: document.querySelector('#fullscreenBtn'),
   image: document.querySelector('#imageInput'),
 };
 
@@ -74,6 +75,7 @@ const state = {
   lastDropAt: 0, bricksDestroyed: 0,
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
+  fullscreen: false,
   autoDelay: null, autoStuck: .45, autoAim: 0,
 };
 
@@ -520,6 +522,7 @@ function draw() {
   }
   ctx.globalAlpha = 1;
   ctx.restore();
+  drawFullscreenHud();
   // En modo automático no se muestra el cartel entre niveles o reinicios, solo la pausa manual.
   if ((!state.running && !MODE.auto) || state.paused) {
     ctx.fillStyle = 'rgb(251 252 250 / 78%)'; ctx.fillRect(0, 0, VIEW.w, VIEW.h);
@@ -528,8 +531,20 @@ function draw() {
     const label = state.paused ? 'En pausa' : state.lives <= 0 ? 'Fin de la partida' : 'Brick Out';
     ctx.fillText(label, VIEW.w / 2, VIEW.h / 2 - 8);
     ctx.fillStyle = '#747c74'; ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText(state.paused ? 'Pulsa Pausa para continuar' : 'Pulsa Iniciar o espacio para jugar', VIEW.w / 2, VIEW.h / 2 + 20);
+    const resume = state.fullscreen ? 'Toca la pantalla o pulsa P para continuar' : 'Pulsa Pausa para continuar';
+    const begin = state.fullscreen ? 'Toca la pantalla o pulsa Espacio para jugar' : 'Pulsa Iniciar o espacio para jugar';
+    ctx.fillText(state.paused ? resume : begin, VIEW.w / 2, VIEW.h / 2 + 20);
   }
+}
+// En pantalla completa la barra superior no se ve, así que el marcador se dibuja sobre el canvas.
+// (En ?clean no se dibuja: ese modo es para grabar sin interfaz.)
+function drawFullscreenHud() {
+  if (!state.fullscreen || MODE.clean) return;
+  ctx.font = '600 12px ui-monospace, Consolas, monospace';
+  ctx.fillStyle = '#747c74'; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left'; ctx.fillText(`PUNTOS ${String(state.score).padStart(4, '0')}`, 24, 22);
+  ctx.textAlign = 'center'; ctx.fillText(`NIVEL ${state.level}`, VIEW.w / 2, 22);
+  ctx.textAlign = 'right'; ctx.fillText(`VIDAS ${state.lives}`, VIEW.w - 24, 22);
 }
 function frame(timestamp) {
   const dt = Math.min((timestamp - (state.lastTime || timestamp)) / 1000, .03);
@@ -553,10 +568,50 @@ function pointerPosition(event) {
   state.pointerActive = true;
 }
 canvas.addEventListener('pointermove', pointerPosition);
-canvas.addEventListener('pointerdown', (event) => { pointerPosition(event); if (!state.running && state.lives > 0) launch(); else if (state.balls.some((ball) => ball.stuck)) launch(); });
+canvas.addEventListener('pointerdown', (event) => {
+  pointerPosition(event);
+  if (state.paused) { togglePause(); return; } // en pantalla completa no hay botón de pausa
+  if (!state.running && state.lives > 0) launch();
+  else if (state.balls.some((ball) => ball.stuck)) launch();
+});
+
+// --- Pantalla completa ---
+// Se usa la API nativa y, donde no existe o falla (iPhone), un respaldo con CSS que cubre la ventana.
+const fsTarget = canvas.parentElement; // .game-panel: así el canvas y futuros avisos quedan dentro
+function nativeFullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+function syncFullscreen() {
+  state.fullscreen = nativeFullscreenElement() === fsTarget || fsTarget.classList.contains('pseudo-fs');
+  document.documentElement.classList.toggle('fs-lock', state.fullscreen);
+  ui.fullscreen.setAttribute('aria-pressed', String(state.fullscreen));
+}
+function setPseudoFullscreen(on) {
+  fsTarget.classList.toggle('pseudo-fs', on);
+  syncFullscreen();
+}
+async function toggleFullscreen() {
+  try {
+    if (fsTarget.classList.contains('pseudo-fs')) { setPseudoFullscreen(false); return; }
+    if (nativeFullscreenElement()) {
+      await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      return;
+    }
+    const request = fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen;
+    if (request) await request.call(fsTarget);
+    else setPseudoFullscreen(true);
+  } catch {
+    setPseudoFullscreen(true); // el navegador la rechazó: se usa el respaldo
+  }
+  syncFullscreen();
+}
+document.addEventListener('fullscreenchange', syncFullscreen);
+document.addEventListener('webkitfullscreenchange', syncFullscreen);
+ui.fullscreen.addEventListener('click', toggleFullscreen);
+
 window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
   if (['arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
+  if (key === 'f' && !event.repeat && !event.ctrlKey && !event.metaKey) toggleFullscreen();
+  if (key === 'escape' && fsTarget.classList.contains('pseudo-fs')) setPseudoFullscreen(false);
   if (key === 'arrowleft' || key === 'a') state.left = true;
   if (key === 'arrowright' || key === 'd') state.right = true;
   if (key === ' ' && !event.repeat && state.lives > 0) launch();

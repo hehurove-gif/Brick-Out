@@ -72,6 +72,34 @@ body.clean .game-panel {
 }
 body.clean canvas { cursor: none; }
 
+/* Pantalla completa: nativa (:fullscreen) o, donde el navegador no la permite (iPhone), .pseudo-fs.
+   Van con !important para ganar a las reglas de ?clean y ?portrait. */
+.game-panel:fullscreen,
+.game-panel:-webkit-full-screen,
+.game-panel.pseudo-fs {
+  display: grid !important;
+  place-items: center;
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fbfcfa;
+}
+.game-panel.pseudo-fs { position: fixed; inset: 0; z-index: 100; }
+.game-panel:fullscreen canvas,
+.game-panel:-webkit-full-screen canvas,
+.game-panel.pseudo-fs canvas {
+  width: min(100vw, calc(100vh * var(--ratio, 1.6)));
+  width: min(100dvw, calc(100dvh * var(--ratio, 1.6)));
+  height: auto;
+  cursor: none;
+}
+html.fs-lock, html.fs-lock body { overflow: hidden; }
+
 @media (max-width: 600px) {
   body { padding: 18px 12px; }
   .topbar { margin-bottom: 20px; }
