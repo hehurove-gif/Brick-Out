@@ -825,7 +825,11 @@ window.addEventListener('keydown', (event) => {
   }
   if (['arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
   if (key === 'f' && !event.repeat && !event.ctrlKey && !event.metaKey) toggleFullscreen();
-  if (key === 'escape' && fsTarget.classList.contains('pseudo-fs')) setPseudoFullscreen(false);
+  if (key === 'escape' && !event.repeat) {
+    // En el modo alterno de pantalla completa (iPhone) Esc solo sale; en lo demás pausa o reanuda.
+    if (fsTarget.classList.contains('pseudo-fs')) setPseudoFullscreen(false);
+    else togglePause();
+  }
   if (key === 'arrowleft' || key === 'a') state.left = true;
   if (key === 'arrowright' || key === 'd') state.right = true;
   if (key === ' ' && !event.repeat && state.lives > 0) launch();

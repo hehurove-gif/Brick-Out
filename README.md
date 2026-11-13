@@ -43,7 +43,7 @@ Si prefieres Pages: **Framework preset** None, **Build command** vacío y **Buil
 - Mouse o pantalla táctil: mueve la paleta.
 - Flechas izquierda/derecha o A/D: mueve la paleta.
 - Espacio: lanza la pelota o la vuelve a lanzar desde una paleta pegajosa.
-- P: pausa o reanuda.
+- P o Esc: pausa o reanuda.
 - F o el botón **Pantalla completa**: entra y sale de pantalla completa (Esc también sale). En pantalla completa, tocar la pantalla reanuda una pausa.
 - Importar imagen: convierte sus colores en un patrón de ladrillos. Si pierdes, **Iniciar** vuelve a empezar con ese mismo patrón.
   - La detección (`public/image-bricks.js`) está adaptada de SVG-Converter: compara colores en espacio Lab, arma la paleta solo con zonas de color plano (los bordes suavizados y el ruido JPEG no crean colores falsos), quita el fondo parejo conectado con el borde y asigna a cada ladrillo el color dominante de su celda. Las imágenes con transparencia (PNG) se respetan tal cual.
