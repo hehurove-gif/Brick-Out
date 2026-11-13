@@ -491,7 +491,36 @@ function collideBallWithBrick(ball, brick) {
   }
   return true;
 }
+// Pasillos libres a los lados de los ladrillos (si caben): centro de cada uno y borde inferior del campo.
+function sideLanes() {
+  if (!state.bricks.length) return null;
+  let minX = Infinity, maxX = -Infinity, bottom = -Infinity;
+  for (const brick of state.bricks) {
+    if (brick.x < minX) minX = brick.x;
+    if (brick.x + brick.w > maxX) maxX = brick.x + brick.w;
+    if (brick.y + brick.h > bottom) bottom = brick.y + brick.h;
+  }
+  const need = BALL_RADIUS * 2 + 6;
+  const lanes = [];
+  if (minX >= need) lanes.push(minX / 2);
+  if (VIEW.w - maxX >= need) lanes.push((maxX + VIEW.w) / 2);
+  return lanes.length ? { lanes, bottom } : null;
+}
+// Tendencia suave: al subir por debajo de los ladrillos, la pelota se desvía hacia el pasillo lateral más
+// cercano. Así a veces llega al fondo del campo y rompe las capas desde atrás. La rapidez no cambia.
+const SIDE_PULL = 380;
+function steerToSides(ball, dt, field) {
+  if (!field || ball.vy >= 0 || ball.y < field.bottom + 12) return;
+  const lane = field.lanes.reduce((best, x) => (Math.abs(x - ball.x) < Math.abs(best - ball.x) ? x : best));
+  const dx = lane - ball.x;
+  if (Math.abs(dx) < 10) return;
+  const speed = Math.hypot(ball.vx, ball.vy);
+  const vx = clamp(ball.vx + Math.sign(dx) * SIDE_PULL * dt, -speed * .8, speed * .8);
+  ball.vx = vx;
+  ball.vy = -Math.sqrt(speed * speed - vx * vx);
+}
 function updateBalls(dt) {
+  const field = sideLanes();
   for (const ball of [...state.balls]) {
     if (ball.stuck) {
       ball.x = state.paddle.x + state.paddle.width / 2;
@@ -503,6 +532,7 @@ function updateBalls(dt) {
       ball.trail.push({ x: ball.x, y: ball.y });
       if (ball.trail.length > 9) ball.trail.shift();
     }
+    steerToSides(ball, dt, field);
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
