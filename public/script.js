@@ -298,7 +298,7 @@ function generateImageBricks(image, count = 100) {
 
   // Bloques cuadrados que caben en el área de ladrillos, centrados.
   const padX = MODE.portrait ? 28 : 34;
-  const pitch = Math.min((VIEW.w - padX * 2) / cols, (MODE.portrait ? 520 : 300) / rows);
+  const pitch = Math.min((VIEW.w - padX * 2) / cols, (MODE.portrait ? 520 : 380) / rows);
   const gap = clamp(pitch * .12, 1.5, 8), size = pitch - gap;
   const x0 = (VIEW.w - (cols * pitch - gap)) / 2;
   const layout = cells.map((c) => ({
