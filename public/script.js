@@ -68,16 +68,54 @@ function toneColor(level, tone, hp) {
 }
 // `desc` es lo que se muestra en el aviso de power-up nuevo y en la lista del pie de página.
 // Los números deben coincidir con applyPower (duraciones, porcentajes y máximos).
+// Íconos planos y minimalistas (cuadrícula de 24 × 24, un solo trazo blanco). Son datos de trazado SVG:
+// se dibujan en el canvas con Path2D y en la página como <svg>, sin depender de emojis del sistema.
+const ring = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0z`;
+const pill = (x, y, w, h, r) => `M${x + r} ${y}h${w - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 ${-r} ${r}h${-(w - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${-r}v${-(h - 2 * r)}a${r} ${r} 0 0 1 ${r} ${-r}z`;
+const ICONS = {
+  fire: 'M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-4.5 3-7 .6 1.6 1.4 2.4 2.2 3C11.600 8.200 11.500 5 12 2zM12 21a3 3 0 0 1-3-3c0-1.800 1.600-2.600 3-4.500 1.400 1.900 3 2.700 3 4.500a3 3 0 0 1-3 3z',
+  wide: 'M2 12l5-5v3.500h10V7l5 5-5 5v-3.500H7V17z',
+  multi: `${ring(7, 8, 4)}${ring(17, 8, 4)}${ring(12, 17, 4)}`,
+  life: 'M12 21C5 15.500 3 12 3 8.800A4.800 4.800 0 0 1 12 6.400 4.800 4.800 0 0 1 21 8.800C21 12 19 15.500 12 21z',
+  speedUp: 'M13 2 4 14h6l-1 8 9-12h-6z',
+  slow: 'M6 2h12v2c0 3-2 5-4 7 2 2 4 4 4 7v2H6v-2c0-3 2-5 4-7-2-2-4-4-4-7zM9 4.500c0 1.300 1.400 2.700 3 4 1.600-1.300 3-2.700 3-4z',
+  sticky: `M12 2C8 8 5 11 5 15a7 7 0 0 0 14 0c0-4-3-7-7-13z${ring(9.500, 15, 1.600)}`,
+  chain: `${pill(1, 6.500, 13, 11, 5.500)}${pill(4.500, 10, 6, 4, 2)}${pill(10, 6.500, 13, 11, 5.500)}${pill(13.500, 10, 6, 4, 2)}`,
+  rockets: `M12 2c3 2.500 4 6 4 9.500V16H8v-4.500C8 8 9 4.500 12 2zM8 13l-3 4v2l3-1.500zM16 13l3 4v2l-3-1.500zM10.500 17.500h3L12 22z${ring(12, 9, 1.800)}`,
+};
+const iconPaths = {};
+function drawIcon(ctx2, type, cx, cy, size) {
+  iconPaths[type] = iconPaths[type] || new Path2D(ICONS[type]);
+  ctx2.save();
+  ctx2.translate(cx - size / 2, cy - size / 2);
+  ctx2.scale(size / 24, size / 24);
+  ctx2.fillStyle = '#fff';
+  ctx2.fill(iconPaths[type], 'evenodd');
+  ctx2.restore();
+}
+// <svg> para la página (aviso y lista). Solo atributos, sin estilos en línea (la CSP no los permite).
+function iconSvg(type) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', ICONS[type]);
+  path.setAttribute('fill', '#fff');
+  path.setAttribute('fill-rule', 'evenodd');
+  svg.append(path);
+  return svg;
+}
 const POWERUPS = {
-  fire: { icon: '🔥', label: 'Fuego', color: '#d66c4e', desc: 'La pelota atraviesa los ladrillos sin rebotar durante 8 segundos.' },
-  wide: { icon: '↔️', label: 'Ancha', color: '#438a9b', desc: 'Tu paleta se ensancha durante 8 segundos para atrapar mejor la pelota.' },
-  multi: { icon: '🎱', label: 'Múltiple', color: '#b88a35', desc: 'Suma hasta 2 pelotas extra (máximo 4 a la vez). No pierdes vida hasta que caigan todas.' },
-  life: { icon: '❤️', label: 'Vida', color: '#4d8b63', desc: 'Ganas una vida extra. Puedes tener 5 como máximo.' },
-  speedUp: { icon: '⚡', label: 'Rápida', color: '#b7653e', desc: 'La pelota va un 12 % más rápida: rompes más rápido, pero es más difícil de atrapar.' },
-  slow: { icon: '🐢', label: 'Lenta', color: '#607ba0', desc: 'La pelota va un 10 % más lenta, para controlarla con calma.' },
-  sticky: { icon: '🍯', label: 'Pegajosa', color: '#8566a0', desc: 'La pelota se pega a la paleta durante 8 segundos. Lánzala con Espacio o un toque.' },
-  chain: { icon: '⛓️', label: 'Cadena', color: '#596c9e', desc: 'Durante 7 segundos, al romper un ladrillo se rompen hasta 2 más del mismo color.' },
-  rockets: { icon: '🚀', label: 'Cohetes', color: '#b75269', desc: 'Durante 7 segundos tu paleta dispara 2 cohetes cada 0,8 segundos.' },
+  fire: { label: 'Fuego', color: '#d66c4e', desc: 'La pelota atraviesa los ladrillos sin rebotar durante 8 segundos.' },
+  wide: { label: 'Ancha', color: '#438a9b', desc: 'Tu paleta se ensancha durante 8 segundos para atrapar mejor la pelota.' },
+  multi: { label: 'Múltiple', color: '#b88a35', desc: 'Suma hasta 2 pelotas extra (máximo 4 a la vez). No pierdes vida hasta que caigan todas.' },
+  life: { label: 'Vida', color: '#4d8b63', desc: 'Ganas una vida extra. Puedes tener 5 como máximo.' },
+  speedUp: { label: 'Rápida', color: '#b7653e', desc: 'La pelota va un 12 % más rápida: rompes más rápido, pero es más difícil de atrapar.' },
+  slow: { label: 'Lenta', color: '#607ba0', desc: 'La pelota va un 10 % más lenta, para controlarla con calma.' },
+  sticky: { label: 'Pegajosa', color: '#8566a0', desc: 'La pelota se pega a la paleta durante 8 segundos. Lánzala con Espacio o un toque.' },
+  chain: { label: 'Cadena', color: '#596c9e', desc: 'Durante 7 segundos, al romper un ladrillo se rompen hasta 2 más del mismo color.' },
+  rockets: { label: 'Cohetes', color: '#b75269', desc: 'Durante 7 segundos tu paleta dispara 2 cohetes cada 0,8 segundos.' },
 };
 // Pesos deliberados: utilidades comunes frecuentes, efectos de limpieza raros.
 const DROP_WEIGHTS = [
@@ -627,8 +665,7 @@ function draw() {
   for (const drop of state.drops) {
     ctx.fillStyle = POWERUPS[drop.type].color;
     ctx.beginPath(); ctx.arc(drop.x, drop.y, drop.r, 0, Math.PI * 2); ctx.fill();
-    ctx.font = '15px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(POWERUPS[drop.type].icon, drop.x, drop.y + 1);
+    drawIcon(ctx, drop.type, drop.x, drop.y, drop.r * 1.35);
   }
   for (const rocket of state.rockets) {
     ctx.fillStyle = '#b75269'; ctx.fillRect(rocket.x - 2, rocket.y - 7, 4, 12);
@@ -767,7 +804,7 @@ function renderPowerList() {
     item.className = found ? 'found' : 'unseen';
     const dot = document.createElement('span');
     dot.className = 'power-dot';
-    dot.textContent = power.icon;
+    dot.replaceChildren(iconSvg(type));
     dot.style.background = power.color;
     const text = document.createElement('span');
     const name = document.createElement('strong');
@@ -789,7 +826,7 @@ function showNextPopup() {
   const type = popupQueue.shift();
   if (!type) return;
   const power = POWERUPS[type];
-  ui.popupBadge.textContent = power.icon;
+  ui.popupBadge.replaceChildren(iconSvg(type));
   ui.popupBadge.style.background = power.color;
   ui.popupName.textContent = power.label;
   ui.popupDesc.textContent = power.desc;

@@ -64,7 +64,8 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px soli
 .power-list li.unseen { opacity: .6; }
 .power-list li.found strong { color: var(--ink); }
 .power-list li.unseen .power-dot { filter: grayscale(1); }
-.power-dot { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 13px; line-height: 1; }
+.power-dot { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
+.power-dot svg { width: 14px; height: 14px; }
 
 /* Aviso de power-up nuevo (dentro del campo, también en pantalla completa). */
 .game-panel { position: relative; }
@@ -72,7 +73,8 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px soli
 .power-popup[hidden] { display: none; }
 .power-card { width: min(100%, 340px); padding: 22px 22px 20px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 50px rgb(26 39 28 / 16%); }
 .power-kicker { margin: 0 0 12px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.power-badge { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; font-size: 32px; line-height: 1; box-shadow: 0 6px 16px rgb(0 0 0 / 14%); }
+.power-badge { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; box-shadow: 0 6px 16px rgb(0 0 0 / 14%); }
+.power-badge svg { width: 34px; height: 34px; }
 .power-card h2 { margin: 0 0 6px; font-size: 21px; letter-spacing: -.03em; }
 .power-desc { margin: 0 0 12px; color: #3b423d; font-size: 14px; line-height: 1.5; }
 .power-meta { margin: 0 0 14px; color: var(--muted); font-size: 11px; }
