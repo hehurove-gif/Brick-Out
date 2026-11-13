@@ -69,15 +69,15 @@ function toneColor(level, tone, hp) {
 // `desc` es lo que se muestra en el aviso de power-up nuevo y en la lista del pie de página.
 // Los números deben coincidir con applyPower (duraciones, porcentajes y máximos).
 const POWERUPS = {
-  fire: { label: 'Fuego', color: '#d66c4e', desc: 'La pelota atraviesa los ladrillos sin rebotar durante 8 segundos.' },
-  wide: { label: 'Ancha', color: '#438a9b', desc: 'Tu paleta se ensancha durante 8 segundos para atrapar mejor la pelota.' },
-  multi: { label: 'Múltiple', color: '#b88a35', desc: 'Suma hasta 2 pelotas extra (máximo 4 a la vez). No pierdes vida hasta que caigan todas.' },
-  life: { label: 'Vida', color: '#4d8b63', desc: 'Ganas una vida extra. Puedes tener 5 como máximo.' },
-  speedUp: { label: 'Rápida', color: '#b7653e', desc: 'La pelota va un 12 % más rápida: rompes más rápido, pero es más difícil de atrapar.' },
-  slow: { label: 'Lenta', color: '#607ba0', desc: 'La pelota va un 10 % más lenta, para controlarla con calma.' },
-  sticky: { label: 'Pegajosa', color: '#8566a0', desc: 'La pelota se pega a la paleta durante 8 segundos. Lánzala con Espacio o un toque.' },
-  chain: { label: 'Cadena', color: '#596c9e', desc: 'Durante 7 segundos, al romper un ladrillo se rompen hasta 2 más del mismo color.' },
-  rockets: { label: 'Cohetes', color: '#b75269', desc: 'Durante 7 segundos tu paleta dispara 2 cohetes cada 0,8 segundos.' },
+  fire: { icon: '🔥', label: 'Fuego', color: '#d66c4e', desc: 'La pelota atraviesa los ladrillos sin rebotar durante 8 segundos.' },
+  wide: { icon: '↔️', label: 'Ancha', color: '#438a9b', desc: 'Tu paleta se ensancha durante 8 segundos para atrapar mejor la pelota.' },
+  multi: { icon: '🎱', label: 'Múltiple', color: '#b88a35', desc: 'Suma hasta 2 pelotas extra (máximo 4 a la vez). No pierdes vida hasta que caigan todas.' },
+  life: { icon: '❤️', label: 'Vida', color: '#4d8b63', desc: 'Ganas una vida extra. Puedes tener 5 como máximo.' },
+  speedUp: { icon: '⚡', label: 'Rápida', color: '#b7653e', desc: 'La pelota va un 12 % más rápida: rompes más rápido, pero es más difícil de atrapar.' },
+  slow: { icon: '🐢', label: 'Lenta', color: '#607ba0', desc: 'La pelota va un 10 % más lenta, para controlarla con calma.' },
+  sticky: { icon: '🍯', label: 'Pegajosa', color: '#8566a0', desc: 'La pelota se pega a la paleta durante 8 segundos. Lánzala con Espacio o un toque.' },
+  chain: { icon: '⛓️', label: 'Cadena', color: '#596c9e', desc: 'Durante 7 segundos, al romper un ladrillo se rompen hasta 2 más del mismo color.' },
+  rockets: { icon: '🚀', label: 'Cohetes', color: '#b75269', desc: 'Durante 7 segundos tu paleta dispara 2 cohetes cada 0,8 segundos.' },
 };
 // Pesos deliberados: utilidades comunes frecuentes, efectos de limpieza raros.
 const DROP_WEIGHTS = [
@@ -266,7 +266,7 @@ function maybeDrop(brick) {
   // 11% por ladrillo destruido, con máximo 2 objetos simultáneos y 4 ladrillos entre drops.
   if (state.drops.length >= 2 || state.bricksDestroyed - state.lastDropAt < 4 || Math.random() > 0.11) return;
   state.lastDropAt = state.bricksDestroyed;
-  state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, r: 10, vy: 115, type: chooseDrop() });
+  state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, r: 13, vy: 115, type: chooseDrop() });
 }
 function burst(x, y, color, count = MODE.juice ? 12 : 7) {
   for (let i = 0; i < count; i += 1) state.particles.push({ x, y, vx: (Math.random() - .5) * 150, vy: (Math.random() - .5) * 130, life: .35 + Math.random() * .3, color });
@@ -594,8 +594,8 @@ function draw() {
   for (const drop of state.drops) {
     ctx.fillStyle = POWERUPS[drop.type].color;
     ctx.beginPath(); ctx.arc(drop.x, drop.y, drop.r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '600 8px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(POWERUPS[drop.type].label[0], drop.x, drop.y);
+    ctx.font = '15px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(POWERUPS[drop.type].icon, drop.x, drop.y + 1);
   }
   for (const rocket of state.rockets) {
     ctx.fillStyle = '#b75269'; ctx.fillRect(rocket.x - 2, rocket.y - 7, 4, 12);
@@ -733,7 +733,7 @@ function renderPowerList() {
     item.className = found ? 'found' : 'unseen';
     const dot = document.createElement('span');
     dot.className = 'power-dot';
-    dot.textContent = power.label[0];
+    dot.textContent = power.icon;
     dot.style.background = power.color;
     const text = document.createElement('span');
     const name = document.createElement('strong');
@@ -755,7 +755,7 @@ function showNextPopup() {
   const type = popupQueue.shift();
   if (!type) return;
   const power = POWERUPS[type];
-  ui.popupBadge.textContent = power.label[0];
+  ui.popupBadge.textContent = power.icon;
   ui.popupBadge.style.background = power.color;
   ui.popupName.textContent = power.label;
   ui.popupDesc.textContent = power.desc;
