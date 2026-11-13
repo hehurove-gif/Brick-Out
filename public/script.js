@@ -126,14 +126,32 @@ function makeBrick(x, y, width, height, materialKey, color, tone) {
   const material = MATERIALS[materialKey] || MATERIALS.stone;
   return { x, y, w: width, h: height, material: materialKey, hp: material.hp, maxHp: material.hp, color, tone: tone ?? color };
 }
+// Progresión: el nivel 1 es corto y cada nivel crece hasta el tamaño completo en el nivel 4.
+//   nivel   capas   columnas   resistencia máxima
+//     1       3        7              2
+//     2       5        8              3
+//     3       7        8              4
+//    4+       9        8              5
+// (Antes todos los niveles tenían 50-60 ladrillos y 150-160 golpes: el primero tardaba unos 5 min.)
+// En vertical (?portrait / ?tiktok) se empieza dos pasos más adelante: el campo es más alto y el
+// video necesita acción desde el primer segundo.
+function levelPlan(level) {
+  const step = level + (MODE.portrait ? 2 : 0);
+  return {
+    layers: Math.min(9, 3 + 2 * (step - 1)),
+    cols: MODE.portrait ? 8 : (step === 1 ? 7 : 8),
+    peak: Math.min(5, step + 1),
+  };
+}
 function buildLevel() {
-  const rows = Math.min(5 + Math.floor((state.level - 1) / 2), 7) + (MODE.portrait ? 4 : 0);
-  const cols = MODE.portrait ? 8 : 10;
+  const plan = levelPlan(state.level);
+  const rows = plan.layers;
+  const cols = plan.cols;
   const gap = 8;
   const padX = MODE.portrait ? 28 : 56;
   const brickW = (VIEW.w - padX * 2 - gap * (cols - 1)) / cols;
   const brickH = 25;
-  const materials = ['wood', 'glass', 'stone', 'metal', 'crystal'];
+  const materials = ['wood', 'glass', 'stone', 'metal', 'crystal'].slice(0, plan.peak);
   const bricks = [];
   for (let row = 0; row < rows; row += 1) {
     const material = materials[Math.min(materials.length - 1, Math.floor(row * materials.length / rows))];
