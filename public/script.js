@@ -95,6 +95,7 @@ const state = {
   lastDropAt: 0, bricksDestroyed: 0,
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
+  bgT: 0, // reloj del fondo animado (segundos)
   fullscreen: false,
   intro: null, // transición al nivel nuevo: { t, dur }; la pelota se lanza sola al terminar
   modal: false, modalOpenedAt: 0, // aviso de power-up nuevo abierto (el juego queda en pausa)
@@ -107,6 +108,7 @@ function updateHud() {
   ui.score.textContent = String(state.score).padStart(4, '0');
   ui.lives.textContent = state.lives;
   ui.level.textContent = state.level;
+  document.documentElement.style.setProperty('--hue', String(bgHue(state.level))); // tiñe también la página
   ui.status.textContent = state.status;
 }
 
@@ -542,11 +544,42 @@ function updateIntro(dt) {
 }
 const easeOut = (k) => 1 - (1 - k) ** 3;
 
+// Fondo animado: degradado y manchas de color que flotan; el matiz cambia con cada nivel.
+// Siempre claro y de baja saturación para que los ladrillos y la pelota se sigan leyendo bien.
+const bgHue = (level) => (level * 37 + 150) % 360;
+function drawBackground() {
+  const hue = bgHue(state.level);
+  const t = state.bgT;
+  const sky = ctx.createLinearGradient(0, 0, VIEW.w * .35, VIEW.h);
+  sky.addColorStop(0, `hsl(${hue} 80% 94%)`);
+  sky.addColorStop(.55, `hsl(${hue + 45} 80% 93%)`);
+  sky.addColorStop(1, `hsl(${hue + 100} 80% 92%)`);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  const reach = Math.max(VIEW.w, VIEW.h);
+  for (let i = 0; i < 5; i += 1) {
+    const x = VIEW.w * (.5 + .46 * Math.sin(t * (.11 + i * .037) + i * 1.9));
+    const y = VIEW.h * (.5 + .46 * Math.cos(t * (.09 + i * .043) + i * 2.7));
+    const r = reach * (.34 + .05 * i);
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, r);
+    glow.addColorStop(0, `hsl(${hue + i * 62} 95% 68% / 34%)`);
+    glow.addColorStop(1, `hsl(${hue + i * 62} 95% 68% / 0%)`);
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  }
+  // Burbujas que suben despacio.
+  for (let i = 0; i < 16; i += 1) {
+    const speed = 10 + (i % 5) * 5;
+    const y = VIEW.h + 20 - ((t * speed + i * 97) % (VIEW.h + 40));
+    const x = (i * 211 + 40 * Math.sin(t * .4 + i)) % VIEW.w;
+    ctx.fillStyle = `hsl(${hue + i * 23} 90% 70% / 30%)`;
+    ctx.beginPath(); ctx.arc(x, y, 4 + (i % 4) * 3, 0, Math.PI * 2); ctx.fill();
+  }
+}
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, VIEW.w, VIEW.h);
-  ctx.fillStyle = '#fbfcfa';
-  ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  drawBackground();
   ctx.save();
   if (state.shake > 0) ctx.translate((Math.random() - .5) * state.shake, (Math.random() - .5) * state.shake);
   // Sutiles guías laterales del área de juego.
@@ -642,6 +675,7 @@ function drawFullscreenHud() {
 function frame(timestamp) {
   const dt = Math.min((timestamp - (state.lastTime || timestamp)) / 1000, .03);
   state.lastTime = timestamp;
+  state.bgT += dt;
   if (MODE.auto) autoPlay(dt);
   if (state.running && !state.paused) {
     if (state.intro) updateIntro(dt);
