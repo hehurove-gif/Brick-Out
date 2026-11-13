@@ -134,7 +134,7 @@ const state = {
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   bgT: 0, // reloj del fondo animado (segundos)
-  fullscreen: false,
+  fullscreen: false, fsExitedAt: -1e9,
   intro: null, // transición al nivel nuevo: { t, dur }; la pelota se lanza sola al terminar
   modal: false, modalOpenedAt: 0, // aviso de power-up nuevo abierto (el juego queda en pausa)
   autoDelay: null, autoStuck: .45, autoAim: 0,
@@ -747,7 +747,9 @@ canvas.addEventListener('pointerdown', (event) => {
 const fsTarget = canvas.parentElement; // .game-panel: así el canvas y futuros avisos quedan dentro
 function nativeFullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
 function syncFullscreen() {
+  const was = state.fullscreen;
   state.fullscreen = nativeFullscreenElement() === fsTarget || fsTarget.classList.contains('pseudo-fs');
+  if (was && !state.fullscreen) state.fsExitedAt = state.lastTime;
   document.documentElement.classList.toggle('fs-lock', state.fullscreen);
   ui.fullscreen.setAttribute('aria-pressed', String(state.fullscreen));
 }
@@ -863,9 +865,10 @@ window.addEventListener('keydown', (event) => {
   if (['arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
   if (key === 'f' && !event.repeat && !event.ctrlKey && !event.metaKey) toggleFullscreen();
   if (key === 'escape' && !event.repeat) {
-    // En el modo alterno de pantalla completa (iPhone) Esc solo sale; en lo demás pausa o reanuda.
+    // Salir de pantalla completa tiene prioridad: en pantalla completa (o justo después de salir con Esc,
+    // por si el navegador entrega la tecla tarde) Esc nunca pausa. En el modo alterno (iPhone) solo sale.
     if (fsTarget.classList.contains('pseudo-fs')) setPseudoFullscreen(false);
-    else togglePause();
+    else if (!state.fullscreen && state.lastTime - state.fsExitedAt > 600) togglePause();
   }
   if (key === 'arrowleft' || key === 'a') state.left = true;
   if (key === 'arrowright' || key === 'd') state.right = true;
