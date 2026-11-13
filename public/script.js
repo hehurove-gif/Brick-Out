@@ -188,7 +188,7 @@ function resetRound() {
 // aunque su resistencia (y por tanto su matiz) sea distinta. Si no se da, se usa el color.
 function makeBrick(x, y, width, height, materialKey, color, tone) {
   const material = MATERIALS[materialKey] || MATERIALS.stone;
-  return { x, y, w: width, h: height, material: materialKey, hp: material.hp, maxHp: material.hp, color, tone: tone ?? color };
+  return { x, y, w: width, h: height, material: materialKey, hp: material.hp, maxHp: material.hp, color, tone: tone ?? color, power: null };
 }
 // Progresión: el nivel 1 es corto y cada nivel crece hasta el tamaño completo en el nivel 4.
 //   nivel   capas   columnas   resistencia máxima
@@ -240,6 +240,16 @@ function buildLevel() {
       bricks.push(makeBrick(padX + col * (brickW + gap), 50 + row * (brickH + gap), brickW, brickH, material, toneColor(state.level, tone, hp), tone));
     }
   }
+  // Varios ladrillos de la primera fila (la más cercana a la paleta) llevan un power-up a la vista, que
+  // sueltan al romperse: así el inicio de cada nivel no es monótono.
+  const firstRow = bricks.slice((rows - 1) * cols);
+  const wanted = Math.min(firstRow.length, Math.max(1, Math.round(cols / 4)));
+  const taken = [];
+  for (let attempt = 0; taken.length < wanted && attempt < 40; attempt += 1) {
+    const col = Math.floor(Math.random() * firstRow.length);
+    if (taken.every((other) => Math.abs(other - col) > 1)) taken.push(col);
+  }
+  taken.forEach((col) => { firstRow[col].power = chooseDrop(); });
   state.bricks = bricks;
   resetRound();
 }
@@ -345,7 +355,11 @@ function destroyBrick(brick, chain = false) {
   state.bricksDestroyed += 1;
   burst(brick.x + brick.w / 2, brick.y + brick.h / 2, brick.color);
   if (MODE.juice) state.shake = Math.min(7, state.shake + brick.maxHp * .9);
-  if (!chain) maybeDrop(brick);
+  if (brick.power) {
+    // Power-up garantizado: siempre cae, aparte del azar y de los límites normales.
+    state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, r: 13, vy: 115, type: brick.power });
+    state.lastDropAt = state.bricksDestroyed;
+  } else if (!chain) maybeDrop(brick);
   if (state.effects.chain > 0 && !chain) {
     const targets = state.bricks.filter((other) => other.tone === brick.tone).slice(0, 2);
     targets.forEach((target) => destroyBrick(target, true));
@@ -701,6 +715,13 @@ function draw() {
         ctx.fillStyle = i < brick.hp ? 'rgb(255 255 255 / 72%)' : 'rgb(0 0 0 / 14%)';
         ctx.fillRect(brick.x + 5 + i * (seg + gap), brick.y + brick.h - 5, seg, 2.5);
       }
+    }
+    if (brick.power) {
+      // Marca del power-up que lleva: el mismo círculo que caerá al romperlo.
+      ctx.globalAlpha = appear;
+      ctx.fillStyle = POWERUPS[brick.power].color;
+      ctx.beginPath(); ctx.arc(brick.x + brick.w / 2, brick.y + brick.h / 2, Math.min(10, brick.h / 2 - 1), 0, Math.PI * 2); ctx.fill();
+      drawIcon(ctx, brick.power, brick.x + brick.w / 2, brick.y + brick.h / 2, 12);
     }
     ctx.restore();
   }
