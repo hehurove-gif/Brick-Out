@@ -96,6 +96,7 @@ const state = {
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   fullscreen: false,
+  intro: null, // transición al nivel nuevo: { t, dur }; la pelota se lanza sola al terminar
   modal: false, modalOpenedAt: 0, // aviso de power-up nuevo abierto (el juego queda en pausa)
   autoDelay: null, autoStuck: .45, autoAim: 0,
 };
@@ -241,7 +242,7 @@ function generateImageBricks(image) {
 function newGame(layout = null) {
   closePowerPopup(true);
   state.score = 0; state.lives = 3; state.level = 1;
-  state.running = false; state.paused = false;
+  state.running = false; state.paused = false; state.intro = null;
   resetPaddle();
   if (layout) loadLayout(layout); else buildLevel();
   resetBall();
@@ -507,6 +508,7 @@ function updateParticles(dt) {
 }
 // Lanza todas las pelotas pegadas a la paleta, alternando la dirección de cada una.
 function launch() {
+  if (state.intro) return; // durante la transición de nivel el lanzamiento es automático
   if (!state.running) { state.running = true; state.paused = false; }
   const speed = LAUNCH_SPEED;
   let direction = Math.random() > .5 ? 1 : -1;
@@ -519,6 +521,9 @@ function launch() {
   });
   setStatus('En juego');
 }
+// Pasa al nivel siguiente sin detener el juego: los ladrillos caen en su sitio, aparece el cartel
+// del nivel y la pelota se lanza sola (INTRO_SECONDS después), sin pedir pulsar nada.
+const INTRO_SECONDS = MODE.auto ? 1 : 1.7;
 function advanceLevel() {
   state.level += 1;
   buildLevel();
@@ -526,9 +531,16 @@ function advanceLevel() {
   resetBall();
   clearEffects();
   if (MODE.juice) state.shake = 8;
-  setStatus('Nivel completado · Espacio para lanzar');
-  state.running = false;
+  state.intro = { t: 0, dur: INTRO_SECONDS };
+  setStatus(`Nivel ${state.level}`);
+  updateHud();
 }
+function updateIntro(dt) {
+  movePaddle(dt); updateBalls(dt); updateParticles(dt);
+  state.intro.t += dt;
+  if (state.intro.t >= state.intro.dur) { state.intro = null; launch(); }
+}
+const easeOut = (k) => 1 - (1 - k) ** 3;
 
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -540,12 +552,18 @@ function draw() {
   // Sutiles guías laterales del área de juego.
   ctx.strokeStyle = '#eef0eb'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(20, 20); ctx.lineTo(20, VIEW.h - 20); ctx.moveTo(VIEW.w - 20, 20); ctx.lineTo(VIEW.w - 20, VIEW.h - 20); ctx.stroke();
-  for (const brick of state.bricks) {
+  const introT = state.intro ? state.intro.t : 0;
+  for (let index = 0; index < state.bricks.length; index += 1) {
+    const brick = state.bricks[index];
     const ratio = brick.hp / brick.maxHp;
-    ctx.globalAlpha = .52 + .48 * ratio;
+    // Entrada del nivel: cada ladrillo cae desde arriba, escalonado por posición.
+    const appear = state.intro ? easeOut(clamp((introT - (index / state.bricks.length) * .55) / .55, 0, 1)) : 1;
+    ctx.save();
+    ctx.translate(0, -(1 - appear) * 90);
+    ctx.globalAlpha = (.52 + .48 * ratio) * appear;
     ctx.fillStyle = brick.color;
     ctx.beginPath(); ctx.roundRect(brick.x, brick.y, brick.w, brick.h, 4); ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = appear;
     if (brick.maxHp > 1) {
       // Un segmento por golpe necesario; los que se van gastando quedan apagados.
       const gap = 2;
@@ -555,6 +573,7 @@ function draw() {
         ctx.fillRect(brick.x + 5 + i * (seg + gap), brick.y + brick.h - 5, seg, 2.5);
       }
     }
+    ctx.restore();
   }
   const p = state.paddle;
   ctx.fillStyle = '#284f40'; ctx.beginPath(); ctx.roundRect(p.x, p.y, p.width, p.height, 5); ctx.fill();
@@ -586,6 +605,15 @@ function draw() {
     ctx.fillStyle = particle.color; ctx.fillRect(particle.x, particle.y, 3, 3);
   }
   ctx.globalAlpha = 1;
+  if (state.intro && !MODE.clean) {
+    // Cartel "Nivel N": aparece rápido y se desvanece antes de lanzar la pelota.
+    const k = state.intro.t / state.intro.dur;
+    ctx.globalAlpha = clamp(Math.min(k / .15, (1 - k) / .35), 0, 1);
+    ctx.fillStyle = '#28312b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 44px system-ui, sans-serif';
+    ctx.fillText(`Nivel ${state.level}`, VIEW.w / 2, VIEW.h * .62);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
   drawFullscreenHud();
   // En modo automático no se muestra el cartel entre niveles o reinicios, solo la pausa manual.
@@ -616,8 +644,11 @@ function frame(timestamp) {
   state.lastTime = timestamp;
   if (MODE.auto) autoPlay(dt);
   if (state.running && !state.paused) {
-    movePaddle(dt); advanceEffects(dt); updateBalls(dt); updateDrops(dt); updateRockets(dt);
-    if (state.bricks.length === 0 && state.lives > 0) advanceLevel();
+    if (state.intro) updateIntro(dt);
+    else {
+      movePaddle(dt); advanceEffects(dt); updateBalls(dt); updateDrops(dt); updateRockets(dt);
+      if (state.bricks.length === 0 && state.lives > 0) advanceLevel();
+    }
   }
   if (!state.paused) {
     updateParticles(dt);
