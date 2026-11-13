@@ -9,6 +9,14 @@ const ui = {
   pause: document.querySelector('#pauseBtn'),
   fullscreen: document.querySelector('#fullscreenBtn'),
   image: document.querySelector('#imageInput'),
+  popup: document.querySelector('#powerPopup'),
+  popupBadge: document.querySelector('#powerPopupBadge'),
+  popupName: document.querySelector('#powerPopupName'),
+  popupDesc: document.querySelector('#powerPopupDesc'),
+  popupMeta: document.querySelector('#powerPopupMeta'),
+  popupBtn: document.querySelector('#powerPopupBtn'),
+  powerList: document.querySelector('#powerList'),
+  powerCount: document.querySelector('#powerCount'),
 };
 
 // Modos por URL (útiles para grabar videos):
@@ -58,16 +66,18 @@ function toneColor(level, tone, hp) {
   const hue = (TONE_HUES[tone % TONE_COUNT] + (level - 1) * 23) % 360;
   return `hsl(${hue} 52% ${Math.round(69 - hp * 3.4)}%)`;
 }
+// `desc` es lo que se muestra en el aviso de power-up nuevo y en la lista del pie de página.
+// Los números deben coincidir con applyPower (duraciones, porcentajes y máximos).
 const POWERUPS = {
-  fire: { label: 'Fuego', color: '#d66c4e' },
-  wide: { label: 'Ancha', color: '#438a9b' },
-  multi: { label: 'Múltiple', color: '#b88a35' },
-  life: { label: 'Vida', color: '#4d8b63' },
-  speedUp: { label: 'Rápida', color: '#b7653e' },
-  slow: { label: 'Lenta', color: '#607ba0' },
-  sticky: { label: 'Pegajosa', color: '#8566a0' },
-  chain: { label: 'Cadena', color: '#596c9e' },
-  rockets: { label: 'Cohetes', color: '#b75269' },
+  fire: { label: 'Fuego', color: '#d66c4e', desc: 'La pelota atraviesa los ladrillos sin rebotar durante 8 segundos.' },
+  wide: { label: 'Ancha', color: '#438a9b', desc: 'Tu paleta se ensancha durante 8 segundos para atrapar mejor la pelota.' },
+  multi: { label: 'Múltiple', color: '#b88a35', desc: 'Suma hasta 2 pelotas extra (máximo 4 a la vez). No pierdes vida hasta que caigan todas.' },
+  life: { label: 'Vida', color: '#4d8b63', desc: 'Ganas una vida extra. Puedes tener 5 como máximo.' },
+  speedUp: { label: 'Rápida', color: '#b7653e', desc: 'La pelota va un 12 % más rápida: rompes más rápido, pero es más difícil de atrapar.' },
+  slow: { label: 'Lenta', color: '#607ba0', desc: 'La pelota va un 10 % más lenta, para controlarla con calma.' },
+  sticky: { label: 'Pegajosa', color: '#8566a0', desc: 'La pelota se pega a la paleta durante 8 segundos. Lánzala con Espacio o un toque.' },
+  chain: { label: 'Cadena', color: '#596c9e', desc: 'Durante 7 segundos, al romper un ladrillo se rompen hasta 2 más del mismo color.' },
+  rockets: { label: 'Cohetes', color: '#b75269', desc: 'Durante 7 segundos tu paleta dispara 2 cohetes cada 0,8 segundos.' },
 };
 // Pesos deliberados: utilidades comunes frecuentes, efectos de limpieza raros.
 const DROP_WEIGHTS = [
@@ -86,6 +96,7 @@ const state = {
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   fullscreen: false,
+  modal: false, modalOpenedAt: 0, // aviso de power-up nuevo abierto (el juego queda en pausa)
   autoDelay: null, autoStuck: .45, autoAim: 0,
 };
 
@@ -228,6 +239,7 @@ function generateImageBricks(image) {
 
 // Partida nueva completa. Si hay un patrón importado, se vuelve a usar en lugar del nivel 1 normal.
 function newGame(layout = null) {
+  closePowerPopup(true);
   state.score = 0; state.lives = 3; state.level = 1;
   state.running = false; state.paused = false;
   resetPaddle();
@@ -278,6 +290,7 @@ function damageBrick(brick, amount = 1) {
 }
 
 function applyPower(type) {
+  discoverPower(type);
   switch (type) {
     case 'wide':
       state.paddle.width = Math.min(210, Math.max(state.paddle.width, BASE_PADDLE_WIDTH + 35));
@@ -576,7 +589,7 @@ function draw() {
   ctx.restore();
   drawFullscreenHud();
   // En modo automático no se muestra el cartel entre niveles o reinicios, solo la pausa manual.
-  if ((!state.running && !MODE.auto) || state.paused) {
+  if (((!state.running && !MODE.auto) || state.paused) && !state.modal) {
     ctx.fillStyle = 'rgb(251 252 250 / 78%)'; ctx.fillRect(0, 0, VIEW.w, VIEW.h);
     ctx.fillStyle = '#28312b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '600 22px system-ui, sans-serif';
@@ -659,8 +672,92 @@ document.addEventListener('fullscreenchange', syncFullscreen);
 document.addEventListener('webkitfullscreenchange', syncFullscreen);
 ui.fullscreen.addEventListener('click', toggleFullscreen);
 
+// --- Power-ups descubiertos y aviso emergente ---
+// La primera vez que se consigue un power-up se registra y aparece una tarjeta que explica qué hace;
+// el juego se pausa mientras está abierta. El registro se guarda en el navegador y se marca en la lista
+// del pie de página. En ?auto, ?tiktok y ?clean no hay avisos ni registro: esos modos son para grabar.
+const POPUPS_ENABLED = !MODE.auto && !MODE.clean;
+const DISCOVERED_KEY = 'brickout.powerups.v1';
+const POPUP_LOCK_MS = 700; // evita cerrar el aviso sin leerlo con un Espacio o un toque apurados
+const POWER_TOTAL = Object.keys(POWERUPS).length;
+const discovered = new Set(loadDiscovered());
+const popupQueue = [];
+function loadDiscovered() {
+  try {
+    const list = JSON.parse(localStorage.getItem(DISCOVERED_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((type) => Object.hasOwn(POWERUPS, type)) : [];
+  } catch {
+    return []; // sin almacenamiento (modo privado o bloqueado): el registro dura solo la sesión
+  }
+}
+function saveDiscovered() {
+  try { localStorage.setItem(DISCOVERED_KEY, JSON.stringify([...discovered])); } catch { /* sin almacenamiento */ }
+}
+function renderPowerList() {
+  ui.powerCount.textContent = `${discovered.size}/${POWER_TOTAL}`;
+  // Se construye con el DOM y style.* (no con atributos style en el HTML) porque _headers prohíbe estilos en línea.
+  ui.powerList.replaceChildren(...Object.entries(POWERUPS).map(([type, power]) => {
+    const found = discovered.has(type);
+    const item = document.createElement('li');
+    item.className = found ? 'found' : 'unseen';
+    const dot = document.createElement('span');
+    dot.className = 'power-dot';
+    dot.textContent = power.label[0];
+    dot.style.background = power.color;
+    const text = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = found ? `${power.label} ✓` : power.label;
+    text.append(name, ` · ${power.desc}`);
+    item.append(dot, text);
+    return item;
+  }));
+}
+function discoverPower(type) {
+  if (!POPUPS_ENABLED || discovered.has(type)) return;
+  discovered.add(type);
+  saveDiscovered();
+  renderPowerList();
+  popupQueue.push(type);
+  if (!state.modal) showNextPopup();
+}
+function showNextPopup() {
+  const type = popupQueue.shift();
+  if (!type) return;
+  const power = POWERUPS[type];
+  ui.popupBadge.textContent = power.label[0];
+  ui.popupBadge.style.background = power.color;
+  ui.popupName.textContent = power.label;
+  ui.popupDesc.textContent = power.desc;
+  ui.popupMeta.textContent = `${discovered.size} de ${POWER_TOTAL} descubiertos`;
+  ui.popup.hidden = false;
+  state.modal = true;
+  state.modalOpenedAt = state.lastTime;
+  state.paused = true;
+  ui.popupBtn.focus();
+}
+// `force` cierra sin respetar el bloqueo ni mostrar los avisos pendientes (al empezar una partida nueva).
+function closePowerPopup(force = false) {
+  if (!state.modal) return;
+  if (!force && state.lastTime - state.modalOpenedAt < POPUP_LOCK_MS) return;
+  ui.popup.hidden = true;
+  state.modal = false;
+  if (!force && popupQueue.length) { showNextPopup(); return; }
+  popupQueue.length = 0;
+  state.paused = false;
+  if (!force) setStatus('En juego');
+}
+ui.popup.addEventListener('click', () => closePowerPopup());
+renderPowerList();
+
 window.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
+  if (state.modal) { // con un aviso abierto, estas teclas lo cierran y las demás no hacen nada
+    if ([' ', 'enter', 'escape'].includes(key)) {
+      event.preventDefault();
+      if (!event.repeat) closePowerPopup();
+    }
+    return;
+  }
   if (['arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
   if (key === 'f' && !event.repeat && !event.ctrlKey && !event.metaKey) toggleFullscreen();
   if (key === 'escape' && fsTarget.classList.contains('pseudo-fs')) setPseudoFullscreen(false);
@@ -675,12 +772,13 @@ window.addEventListener('keyup', (event) => {
   if (key === 'arrowright' || key === 'd') state.right = false;
 });
 function togglePause() {
-  if (!state.running && !state.paused) return;
+  if (state.modal || (!state.running && !state.paused)) return;
   state.paused = !state.paused;
   setStatus(state.paused ? 'En pausa' : 'En juego');
   ui.pause.textContent = state.paused ? 'Continuar' : 'Pausa';
 }
 ui.start.addEventListener('click', () => {
+  if (state.modal) return;
   if (state.lives <= 0) newGame(state.imageLayout);
   if (state.paused) state.paused = false;
   launch(); ui.pause.textContent = 'Pausa'; updateHud();
