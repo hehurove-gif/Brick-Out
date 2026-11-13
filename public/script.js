@@ -41,13 +41,23 @@ const MAX_BALLS = MODE.auto ? 6 : 4;
 const START_BALLS = MODE.auto ? 3 : 1;
 const SPEED_MAX = MODE.auto ? 520 : 430;
 const LAUNCH_SPEED = MODE.auto ? 430 : 350;
+// La resistencia (golpes necesarios) va por material; el color ya no la indica: se ve en los
+// segmentos de la parte baja de cada ladrillo.
 const MATERIALS = {
-  wood: { hp: 1, color: '#cf8a57' },
-  glass: { hp: 2, color: '#69a9b5' },
-  stone: { hp: 3, color: '#929994' },
-  metal: { hp: 4, color: '#6f7a82' },
-  crystal: { hp: 5, color: '#8b79a5' },
+  wood: { hp: 1 },
+  glass: { hp: 2 },
+  stone: { hp: 3 },
+  metal: { hp: 4 },
+  crystal: { hp: 5 },
 };
+// 8 tonos por nivel. Cada nivel gira todos los tonos 23° en la rueda de color, así que cada nivel
+// estrena paleta. Los ladrillos más resistentes son un poco más oscuros dentro de su tono.
+const TONE_HUES = [12, 38, 70, 140, 178, 208, 262, 322];
+const TONE_COUNT = TONE_HUES.length;
+function toneColor(level, tone, hp) {
+  const hue = (TONE_HUES[tone % TONE_COUNT] + (level - 1) * 23) % 360;
+  return `hsl(${hue} 52% ${Math.round(69 - hp * 3.4)}%)`;
+}
 const POWERUPS = {
   fire: { label: 'Fuego', color: '#d66c4e' },
   wide: { label: 'Ancha', color: '#438a9b' },
@@ -110,9 +120,11 @@ function resetRound() {
   state.bricksDestroyed = 0;
   state.lastDropAt = 0;
 }
-function makeBrick(x, y, width, height, materialKey, color) {
+// `tone` identifica el color para el power-up Cadena: los ladrillos con el mismo tono se encadenan
+// aunque su resistencia (y por tanto su matiz) sea distinta. Si no se da, se usa el color.
+function makeBrick(x, y, width, height, materialKey, color, tone) {
   const material = MATERIALS[materialKey] || MATERIALS.stone;
-  return { x, y, w: width, h: height, material: materialKey, hp: material.hp, maxHp: material.hp, color: color || material.color };
+  return { x, y, w: width, h: height, material: materialKey, hp: material.hp, maxHp: material.hp, color, tone: tone ?? color };
 }
 function buildLevel() {
   const rows = Math.min(5 + Math.floor((state.level - 1) / 2), 7) + (MODE.portrait ? 4 : 0);
@@ -126,7 +138,10 @@ function buildLevel() {
   for (let row = 0; row < rows; row += 1) {
     const material = materials[Math.min(materials.length - 1, Math.floor(row * materials.length / rows))];
     for (let col = 0; col < cols; col += 1) {
-      bricks.push(makeBrick(padX + col * (brickW + gap), 50 + row * (brickH + gap), brickW, brickH, material));
+      // Franjas diagonales de 8 tonos: variedad sin que el patrón se vea aleatorio.
+      const tone = (col + row * 2) % TONE_COUNT;
+      const hp = MATERIALS[material].hp;
+      bricks.push(makeBrick(padX + col * (brickW + gap), 50 + row * (brickH + gap), brickW, brickH, material, toneColor(state.level, tone, hp), tone));
     }
   }
   state.bricks = bricks;
@@ -221,7 +236,7 @@ function destroyBrick(brick, chain = false) {
   if (MODE.juice) state.shake = Math.min(7, state.shake + brick.maxHp * .9);
   if (!chain) maybeDrop(brick);
   if (state.effects.chain > 0 && !chain) {
-    const targets = state.bricks.filter((other) => other.color === brick.color).slice(0, 2);
+    const targets = state.bricks.filter((other) => other.tone === brick.tone).slice(0, 2);
     targets.forEach((target) => destroyBrick(target, true));
   }
 }
@@ -487,8 +502,13 @@ function draw() {
     ctx.beginPath(); ctx.roundRect(brick.x, brick.y, brick.w, brick.h, 4); ctx.fill();
     ctx.globalAlpha = 1;
     if (brick.maxHp > 1) {
-      ctx.fillStyle = 'rgb(255 255 255 / 68%)';
-      ctx.fillRect(brick.x + 5, brick.y + brick.h - 4, (brick.w - 10) * ratio, 2);
+      // Un segmento por golpe necesario; los que se van gastando quedan apagados.
+      const gap = 2;
+      const seg = (brick.w - 10 - gap * (brick.maxHp - 1)) / brick.maxHp;
+      for (let i = 0; i < brick.maxHp; i += 1) {
+        ctx.fillStyle = i < brick.hp ? 'rgb(255 255 255 / 72%)' : 'rgb(0 0 0 / 14%)';
+        ctx.fillRect(brick.x + 5 + i * (seg + gap), brick.y + brick.h - 5, seg, 2.5);
+      }
     }
   }
   const p = state.paddle;
