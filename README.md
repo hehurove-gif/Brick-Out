@@ -23,7 +23,7 @@ Los parámetros se pueden combinar (por ejemplo `?auto&clean`). Para grabar, abr
 
 En `?tiktok` y `?clean` no hay barra superior: al mover el mouse o tocar el campo aparecen dos atajos (**＋ Imagen** y **Modo normal**) que se ocultan solos a los pocos segundos, así que no salen al grabar.
 
-`?tiktok` y `?auto` siguen un guion pensado para retener: al empezar cada nivel casi siempre se abre un pasillo lateral y la pelota sube por él hasta el fondo; allí se multiplica (hasta 6 bolas) y, con fuego, limpia buena parte del nivel en pocos segundos. Al final, cuando quedan pocos ladrillos, no caen power-ups y la pelota sale de la paleta esquivándolos, cada vez menos, hasta que a los ~45 s vuelve a jugar normal para poder cerrar el nivel.
+`?tiktok` y `?auto` siguen un guion pensado para retener. Casi todos los niveles traen un pasillo vertical con **muros grises indestructibles** a los lados y un piso (también indestructible) con un hueco justo en el pasillo: la pelota entra por ahí y sube directa hasta el fondo. Allí se multiplica (hasta 6 bolas) y, con fuego, cae a través de los ladrillos y rebota contra el piso, limpiando casi todo el nivel en unos segundos (el fuego se apaga cuando queda ~15 % para no llevarse lo último). Si en 25 s la pelota no llegó atrás, el pico se dispara igual. En el final, cuando quedan pocos ladrillos, el piso y los muros desaparecen, no caen power-ups y la pelota sale de la paleta esquivándolos, cada vez menos; pasados ~25 s apunta a los que quedan, así que el nivel siempre termina.
 
 ## Desplegar en Cloudflare
 

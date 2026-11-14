@@ -145,9 +145,11 @@ const state = {
   lastDropAt: 0, bricksDestroyed: 0,
   totalBricks: 0, // ladrillos con los que empezó el nivel (para apagar la tendencia a los bordes)
   sinceHit: 0, // segundos desde que una pelota tocó la paleta por última vez
+  sinceBreak: 0, // segundos desde que se rompió el último ladrillo (solo para abrir los muros si se atasca)
   flash: 0, // destello blanco del pico de dopamina (solo modo automático)
   // Guion del modo automático (?auto / ?tiktok): arranque espectacular y final que cuesta cerrar.
-  show: { plan: false, burstDone: true, laneX: 0, wait: 0, endTimer: 0, topY: 0 },
+  walls: [], // muros indestructibles (solo modo automático): rebotan la pelota y no cuentan para terminar el nivel
+  show: { plan: false, burstDone: true, laneX: 0, floorY: 0, wait: 0, endTimer: 0, topY: 0 },
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   bgT: 0, // reloj del fondo animado (segundos)
@@ -188,6 +190,7 @@ function resetRound() {
   state.drops = [];
   state.rockets = [];
   state.bricksDestroyed = 0;
+  state.sinceBreak = 0;
   state.lastDropAt = 0;
   state.sinceHit = 0;
 }
@@ -257,24 +260,41 @@ function buildLevel() {
     if (taken.every((other) => Math.abs(other - col) > 1)) taken.push(col);
   }
   taken.forEach((col) => { firstRow[col].power = chooseDrop(); });
-  // Modo automático: casi siempre se abre un pasillo ancho en una columna exterior para que la pelota
-  // pueda subir por ahí hasta el fondo del campo (pico de dopamina del arranque).
+  // Modo automático: casi siempre se abre un pasillo vertical en una columna central, con muros grises
+  // indestructibles a los lados y un piso (también indestructible) con hueco justo en el pasillo. La pelota
+  // solo puede entrar por ahí y sube directa hasta el fondo del campo; con fuego queda atrapada rebotando
+  // entre el piso y el techo mientras atraviesa los ladrillos.
   const wantPlan = MODE.auto && Math.random() < .85;
-  const side = Math.random() < .5 ? -1 : 1;
-  if (wantPlan && padX < 40) {
-    const outer = side < 0 ? 0 : cols - 1;
-    for (let i = bricks.length - 1; i >= 0; i -= 1) if (i % cols === outer) bricks.splice(i, 1);
+  let channel = null;
+  if (wantPlan) {
+    const col = 2 + Math.floor(Math.random() * Math.max(1, cols - 4));
+    const x = padX + col * (brickW + gap);
+    for (let i = bricks.length - 1; i >= 0; i -= 1) if (i % cols === col) bricks.splice(i, 1);
+    channel = { x, w: brickW, floorY: 50 + (rows - 1) * (brickH + gap) + brickH + 5 };
   }
   state.bricks = bricks;
   state.totalBricks = bricks.length;
+  state.walls = channel ? wallsFor(channel, gap) : [];
   resetRound();
-  resetShow(side, wantPlan);
+  resetShow(channel);
+}
+// Muros del pasillo: dos paredes (en los huecos entre columnas) y el piso a ambos lados del hueco.
+function wallsFor(channel, thick) {
+  const top = 50, bottom = channel.floorY + 8;
+  const right = channel.x + channel.w + thick;
+  return [
+    { x: channel.x - thick, y: top, w: thick, h: bottom - top },
+    { x: channel.x + channel.w, y: top, w: thick, h: bottom - top },
+    { x: 0, y: channel.floorY, w: channel.x - thick, h: 8 },
+    { x: right, y: channel.floorY, w: VIEW.w - right, h: 8 },
+  ];
 }
 function loadLayout(layout) {
   state.bricks = layout.map((s) => makeBrick(s.x, s.y, s.w, s.h, s.material, s.color));
   state.totalBricks = state.bricks.length;
+  state.walls = [];
   resetRound();
-  resetShow(Math.random() < .5 ? -1 : 1, MODE.auto && Math.random() < .85);
+  resetShow(null);
 }
 
 // Material según la luminosidad L* (0–100) del color: oscuro = piedra, claro = cristal.
@@ -372,6 +392,7 @@ function destroyBrick(brick, chain = false) {
   state.bricks.splice(index, 1);
   state.score += 10 * brick.maxHp;
   state.bricksDestroyed += 1;
+  state.sinceBreak = 0;
   burst(brick.x + brick.w / 2, brick.y + brick.h / 2, brick.color);
   if (MODE.juice) state.shake = Math.min(7, state.shake + brick.maxHp * .9);
   if (brick.power) {
@@ -535,18 +556,15 @@ function collideBallWithBrick(ball, brick) {
 // --- Guion del modo automático (?auto / ?tiktok) ---
 // Arranque: la pelota sale por un pasillo lateral hasta el fondo del campo, allí se multiplica y, con fuego,
 // atraviesa buena parte del nivel (pico de dopamina). Final: con pocos ladrillos, la pelota sale de la
-// paleta esquivándolos, sin power-ups, y cada vez menos (a los ~45 s vuelve a ser normal, para que siempre
+// paleta esquivándolos, sin power-ups, y cada vez menos (a los ~25 s vuelve a ser normal, para que siempre
 // se pueda terminar el nivel).
-function resetShow(side, plan) {
-  let minX = Infinity, maxX = -Infinity, topY = Infinity;
-  for (const brick of state.bricks) {
-    minX = Math.min(minX, brick.x); maxX = Math.max(maxX, brick.x + brick.w); topY = Math.min(topY, brick.y);
-  }
-  const room = side < 0 ? minX : VIEW.w - maxX;
+function resetShow(channel) {
+  let topY = Infinity;
+  for (const brick of state.bricks) topY = Math.min(topY, brick.y);
   state.show = {
-    plan: Boolean(plan) && state.bricks.length > 0 && room >= 40,
-    burstDone: false, wait: 0, endTimer: 0, topY,
-    laneX: side < 0 ? minX / 2 : (maxX + VIEW.w) / 2,
+    plan: Boolean(channel), burstDone: false, wait: 0, endTimer: 0, age: 0, topY,
+    laneX: channel ? channel.x + channel.w / 2 : VIEW.w / 2,
+    floorY: channel ? channel.floorY : 0,
   };
 }
 function endPhase() {
@@ -567,33 +585,93 @@ function showReady(dt) {
 // hacia abajo, en abanico, atravesando el campo.
 function triggerBurst(source) {
   state.show.burstDone = true;
-  state.effects.fire = 5;
+  state.effects.fire = state.walls.length ? 12 : 6;
   state.balls.forEach((ball) => { ball.fire = true; });
   const speed = Math.max(LAUNCH_SPEED * 1.1, Math.hypot(source.vx, source.vy));
-  const inward = source.x < VIEW.w / 2 ? 1 : -1;
   const extra = Math.max(0, MAX_BALLS - state.balls.length);
   const total = extra + 1;
-  const angleOf = (k) => inward * (.12 + .95 * k / Math.max(1, total - 1));
-  source.vx = speed * Math.sin(angleOf(0)); source.vy = speed * Math.cos(angleOf(0));
-  for (let k = 1; k < total; k += 1) {
-    state.balls.push(makeBall(source.x, source.y + 4, speed * Math.sin(angleOf(k)), speed * Math.cos(angleOf(k)), false));
+  if (state.walls.length) {
+    // Con muros: las bolas aparecen sobre ellos, repartidas por todo el ancho, y caen en abanico a través de
+    // los ladrillos (con fuego); abajo rebotan en el piso indestructible y vuelven a subir.
+    const y = state.show.topY - 14;
+    for (let k = 0; k < total; k += 1) {
+      const t = total === 1 ? .5 : k / (total - 1);
+      const ball = k === 0 ? source : makeBall(0, 0, 0, 0, false);
+      ball.x = 24 + t * (VIEW.w - 48);
+      ball.y = y;
+      const angle = (t - .5) * 1.1 + (Math.random() - .5) * .12;
+      ball.vx = speed * Math.sin(angle); ball.vy = speed * Math.cos(angle);
+      if (k > 0) state.balls.push(ball);
+    }
+  } else {
+    const inward = source.x < VIEW.w / 2 ? 1 : -1;
+    const angleOf = (k) => inward * (.12 + .95 * k / Math.max(1, total - 1));
+    source.vx = speed * Math.sin(angleOf(0)); source.vy = speed * Math.cos(angleOf(0));
+    for (let k = 1; k < total; k += 1) {
+      state.balls.push(makeBall(source.x, source.y + 4, speed * Math.sin(angleOf(k)), speed * Math.cos(angleOf(k)), false));
+    }
   }
   state.shake = 10;
   state.flash = .35;
   burst(source.x, source.y + 10, '#ffffff', 36);
   setStatus('¡Bola múltiple!');
 }
-// En el final, la pelota sale de la paleta por un ángulo que no toca ningún ladrillo en la subida (si lo hay).
+// Con pasillo, la mayoría de los golpes de paleta apuntan (en línea recta) al hueco del piso.
+function gapAngle(angle, ball) {
+  if (!state.walls.length || Math.random() > .7) return angle;
+  return clamp(Math.atan2(state.show.laneX - ball.x, ball.y - state.show.floorY) + (Math.random() - .5) * .04, -1.15, 1.15);
+}
+// Si una pelota rebota casi en vertical entre el piso y el techo podría quedar atrapada para siempre: se le
+// da siempre un mínimo de movimiento horizontal.
+function keepMoving(ball) {
+  const speed = Math.hypot(ball.vx, ball.vy);
+  const least = ball.fire ? .5 : .25; // con fuego barre más ancho
+  if (Math.abs(ball.vx) >= speed * least) return;
+  const vx = (ball.vx === 0 ? (Math.random() < .5 ? -1 : 1) : Math.sign(ball.vx)) * speed * (least + Math.random() * .15);
+  ball.vx = vx;
+  ball.vy = Math.sign(ball.vy || -1) * Math.sqrt(speed * speed - vx * vx);
+}
+// Rebote contra un muro indestructible (también para pelotas con fuego).
+function collideBallWithWall(ball, wall) {
+  const nearestX = clamp(ball.x, wall.x, wall.x + wall.w);
+  const nearestY = clamp(ball.y, wall.y, wall.y + wall.h);
+  const dx = ball.x - nearestX, dy = ball.y - nearestY;
+  const dist2 = dx * dx + dy * dy;
+  if (dist2 >= ball.r * ball.r) return;
+  if (dist2 === 0) { // el centro quedó dentro: sale por el lado más cercano
+    const gaps = [ball.x - wall.x, wall.x + wall.w - ball.x, ball.y - wall.y, wall.y + wall.h - ball.y];
+    const nearest = gaps.indexOf(Math.min(...gaps));
+    if (nearest === 0) { ball.x = wall.x - ball.r; ball.vx = -Math.abs(ball.vx); }
+    else if (nearest === 1) { ball.x = wall.x + wall.w + ball.r; ball.vx = Math.abs(ball.vx); }
+    else if (nearest === 2) { ball.y = wall.y - ball.r; ball.vy = -Math.abs(ball.vy); }
+    else { ball.y = wall.y + wall.h + ball.r; ball.vy = Math.abs(ball.vy); }
+    return;
+  }
+  const dist = Math.sqrt(dist2), push = ball.r - dist;
+  if (Math.abs(dx) > Math.abs(dy)) ball.vx = Math.sign(dx) * Math.abs(ball.vx);
+  else { ball.vy = Math.sign(dy) * Math.abs(ball.vy); keepMoving(ball); }
+  ball.x += dx / dist * push;
+  ball.y += dy / dist * push;
+}
+// Final: durante los primeros 25 s la pelota sale de la paleta por un ángulo que no toca ningún ladrillo en la
+// subida (cada vez con menos frecuencia). Pasado ese tiempo, la pelota apunta a los ladrillos que quedan,
+// así que el nivel siempre termina.
+const END_AVOID_SECONDS = 25;
 function endAngle(angle, ball) {
+  // Red de seguridad: si en 30 s no se rompe nada, también se apunta a los ladrillos aunque no sea el final.
+  const stalled = MODE.auto && state.bricks.length > 0 && state.sinceBreak >= 30;
+  if (!endPhase() && !stalled) return angle;
   const show = state.show;
-  if (!endPhase() || Math.random() > .85 * Math.max(0, 1 - show.endTimer / 45)) return angle;
+  const assisting = stalled || show.endTimer >= END_AVOID_SECONDS;
+  if (!assisting && Math.random() > .85 * (1 - show.endTimer / END_AVOID_SECONDS)) return angle;
   const p = state.paddle;
   const margin = BALL_RADIUS + 8;
   let best = null;
   for (let a = -1.15; a <= 1.15; a += .05) {
     const t = Math.tan(a);
+    const touches = state.bricks.some((brick) => Math.abs(foldX(ball.x + t * (p.y - (brick.y + brick.h / 2))) - (brick.x + brick.w / 2)) <= brick.w / 2 + BALL_RADIUS * .5);
     const clear = state.bricks.every((brick) => Math.abs(foldX(ball.x + t * (p.y - (brick.y + brick.h / 2))) - (brick.x + brick.w / 2)) > brick.w / 2 + margin);
-    if (clear && (best === null || Math.abs(a - angle) < Math.abs(best - angle))) best = a;
+    if ((assisting ? touches : clear) && (best === null || Math.abs(a - angle) < Math.abs(best - angle))) best = a;
   }
   return best === null ? angle : best;
 }
@@ -641,7 +719,7 @@ function updateBalls(dt) {
     }
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
     if (ball.x + ball.r > VIEW.w) { ball.x = VIEW.w - ball.r; ball.vx = -Math.abs(ball.vx); }
-    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = Math.abs(ball.vy); }
+    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = Math.abs(ball.vy); if (state.walls.length) keepMoving(ball); }
     const p = state.paddle;
     if (ball.vy > 0 && ball.y + ball.r >= p.y && ball.y - ball.r <= p.y + p.height && ball.x >= p.x && ball.x <= p.x + p.width) {
       state.autoAim = (Math.random() - .5) * p.width * .7;
@@ -650,12 +728,13 @@ function updateBalls(dt) {
       else {
         const offset = clamp((ball.x - (p.x + p.width / 2)) / (p.width / 2), -.88, .88);
         const speed = clamp(Math.hypot(ball.vx, ball.vy), 230, SPEED_MAX);
-        const angle = endAngle(clamp(offset * 1.05 + sideBias(ball), -1.15, 1.15), ball);
+        const angle = endAngle(gapAngle(clamp(offset * 1.05 + sideBias(ball), -1.15, 1.15), ball), ball);
         ball.vx = speed * Math.sin(angle);
         ball.vy = -speed * Math.cos(angle);
         ball.y = p.y - ball.r - 1;
       }
     }
+    for (const wall of state.walls) collideBallWithWall(ball, wall);
     for (const brick of [...state.bricks]) {
       if (collideBallWithBrick(ball, brick)) {
         if (!ball.fire) break;
@@ -715,7 +794,7 @@ function launch() {
     direction *= -1;
     if (i === 0 && MODE.auto && state.show.plan && !state.show.burstDone) {
       // Lanzamiento "del guion": recta hacia el pasillo lateral que quedó libre.
-      const bottom = state.bricks.reduce((low, brick) => Math.max(low, brick.y + brick.h), 0);
+      const bottom = state.walls.length ? state.show.floorY : state.bricks.reduce((low, brick) => Math.max(low, brick.y + brick.h), 0);
       const aim = Math.atan2(state.show.laneX - ball.x, ball.y - bottom);
       ball.vx = speed * Math.sin(aim);
       ball.vy = -speed * Math.cos(aim);
@@ -808,6 +887,17 @@ function draw() {
     }
     ctx.restore();
   }
+  if (state.walls.length) {
+    const appear = state.intro ? easeOut(clamp(introT / .6, 0, 1)) : 1;
+    ctx.globalAlpha = appear;
+    for (const wall of state.walls) {
+      ctx.fillStyle = '#9aa29d';
+      ctx.beginPath(); ctx.roundRect(wall.x, wall.y, wall.w, wall.h, 3); ctx.fill();
+      ctx.fillStyle = 'rgb(255 255 255 / 35%)';
+      ctx.fillRect(wall.x + 1, wall.y + 1, Math.max(0, wall.w - 2), 1.5);
+    }
+    ctx.globalAlpha = 1;
+  }
   const p = state.paddle;
   ctx.fillStyle = '#284f40'; ctx.beginPath(); ctx.roundRect(p.x, p.y, p.width, p.height, 5); ctx.fill();
   for (const ball of state.balls) {
@@ -894,6 +984,19 @@ function frame(timestamp) {
     state.shake = Math.max(0, state.shake - dt * 28);
     state.flash = Math.max(0, state.flash - dt);
     if (endPhase()) state.show.endTimer += dt;
+    state.sinceBreak += dt;
+    // Si en 25 s la pelota no llegó atrás por su cuenta, el pico se dispara igualmente desde la pelota.
+    state.show.age += dt;
+    if (MODE.auto && !state.show.burstDone && state.show.age > 25) {
+      const source = state.balls.find((ball) => !ball.stuck && ball.y < VIEW.h * .8);
+      if (source && state.bricks.length / state.totalBricks > .5) triggerBurst(source);
+      else if (state.bricks.length / state.totalBricks <= .5) state.show.burstDone = true;
+    }
+    // Red de seguridad: si el nivel se atasca (nada se rompe en ~18 s, o el final pasa de 25 s), el piso y las
+    // paredes desaparecen y la partida sigue normal.
+    if (state.walls.length && (state.sinceBreak > 18 || endPhase())) { state.walls = []; state.shake = Math.max(state.shake, 5); }
+    // El fuego del pico no debe llevarse los últimos ladrillos: se apaga cuando queda poco nivel.
+    if (MODE.auto && state.effects.fire > 0 && state.bricks.length <= Math.max(4, Math.ceil(state.totalBricks * .15))) state.effects.fire = 0;
   }
   draw();
   requestAnimationFrame(frame);
