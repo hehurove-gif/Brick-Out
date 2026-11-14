@@ -145,6 +145,9 @@ const state = {
   lastDropAt: 0, bricksDestroyed: 0,
   totalBricks: 0, // ladrillos con los que empezó el nivel (para apagar la tendencia a los bordes)
   sinceHit: 0, // segundos desde que una pelota tocó la paleta por última vez
+  flash: 0, // destello blanco del pico de dopamina (solo modo automático)
+  // Guion del modo automático (?auto / ?tiktok): arranque espectacular y final que cuesta cerrar.
+  show: { plan: false, burstDone: true, laneX: 0, wait: 0, endTimer: 0, topY: 0 },
   imageLayout: null, // patrón importado; se conserva al reiniciar tras perder
   shake: 0,
   bgT: 0, // reloj del fondo animado (segundos)
@@ -254,14 +257,24 @@ function buildLevel() {
     if (taken.every((other) => Math.abs(other - col) > 1)) taken.push(col);
   }
   taken.forEach((col) => { firstRow[col].power = chooseDrop(); });
+  // Modo automático: casi siempre se abre un pasillo ancho en una columna exterior para que la pelota
+  // pueda subir por ahí hasta el fondo del campo (pico de dopamina del arranque).
+  const wantPlan = MODE.auto && Math.random() < .85;
+  const side = Math.random() < .5 ? -1 : 1;
+  if (wantPlan && padX < 40) {
+    const outer = side < 0 ? 0 : cols - 1;
+    for (let i = bricks.length - 1; i >= 0; i -= 1) if (i % cols === outer) bricks.splice(i, 1);
+  }
   state.bricks = bricks;
   state.totalBricks = bricks.length;
   resetRound();
+  resetShow(side, wantPlan);
 }
 function loadLayout(layout) {
   state.bricks = layout.map((s) => makeBrick(s.x, s.y, s.w, s.h, s.material, s.color));
   state.totalBricks = state.bricks.length;
   resetRound();
+  resetShow(Math.random() < .5 ? -1 : 1, MODE.auto && Math.random() < .85);
 }
 
 // Material según la luminosidad L* (0–100) del color: oscuro = piedra, claro = cristal.
@@ -346,7 +359,7 @@ function dropChance() {
 }
 function maybeDrop(brick) {
   // Máximo 2 objetos simultáneos y 4 ladrillos entre drops.
-  if (state.drops.length >= 2 || state.bricksDestroyed - state.lastDropAt < 4 || Math.random() > dropChance()) return;
+  if (endPhase() || state.drops.length >= 2 || state.bricksDestroyed - state.lastDropAt < 4 || Math.random() > dropChance()) return;
   state.lastDropAt = state.bricksDestroyed;
   state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, r: 13, vy: 115, type: chooseDrop() });
 }
@@ -434,6 +447,7 @@ function foldX(x) {
 }
 function autoTarget() {
   const p = state.paddle;
+  if (state.show.plan && !state.show.burstDone && state.balls.every((ball) => ball.stuck)) return launchCenter() - p.width / 2;
   const free = state.balls.filter((ball) => !ball.stuck);
   const falling = free
     .filter((ball) => ball.vy > 0 && ball.y < p.y)
@@ -456,7 +470,7 @@ function autoPlay(dt) {
   if (!state.running) {
     if (state.autoDelay === null) state.autoDelay = state.lives <= 0 ? 1.8 : .9;
     state.autoDelay -= dt;
-    if (state.autoDelay <= 0) {
+    if (state.autoDelay <= 0 && showReady(dt)) {
       state.autoDelay = null;
       if (state.lives <= 0) newGame(state.imageLayout);
       launch();
@@ -465,7 +479,7 @@ function autoPlay(dt) {
   }
   if (state.balls.some((ball) => ball.stuck)) {
     state.autoStuck -= dt;
-    if (state.autoStuck <= 0) { launch(); state.autoStuck = .45; }
+    if (state.autoStuck <= 0 && showReady(dt)) { launch(); state.autoStuck = .45; }
   } else {
     state.autoStuck = .45;
   }
@@ -518,6 +532,71 @@ function collideBallWithBrick(ball, brick) {
   }
   return true;
 }
+// --- Guion del modo automático (?auto / ?tiktok) ---
+// Arranque: la pelota sale por un pasillo lateral hasta el fondo del campo, allí se multiplica y, con fuego,
+// atraviesa buena parte del nivel (pico de dopamina). Final: con pocos ladrillos, la pelota sale de la
+// paleta esquivándolos, sin power-ups, y cada vez menos (a los ~45 s vuelve a ser normal, para que siempre
+// se pueda terminar el nivel).
+function resetShow(side, plan) {
+  let minX = Infinity, maxX = -Infinity, topY = Infinity;
+  for (const brick of state.bricks) {
+    minX = Math.min(minX, brick.x); maxX = Math.max(maxX, brick.x + brick.w); topY = Math.min(topY, brick.y);
+  }
+  const room = side < 0 ? minX : VIEW.w - maxX;
+  state.show = {
+    plan: Boolean(plan) && state.bricks.length > 0 && room >= 40,
+    burstDone: false, wait: 0, endTimer: 0, topY,
+    laneX: side < 0 ? minX / 2 : (maxX + VIEW.w) / 2,
+  };
+}
+function endPhase() {
+  return MODE.auto && state.bricks.length > 0 && state.bricks.length <= Math.max(3, Math.ceil(state.totalBricks * .12));
+}
+function launchCenter() {
+  return clamp(state.show.laneX, state.paddle.width / 2, VIEW.w - state.paddle.width / 2);
+}
+// Antes de lanzar, la paleta se coloca bajo el pasillo (con un límite de espera).
+function showReady(dt) {
+  const show = state.show;
+  if (!show.plan || show.burstDone) return true;
+  if (Math.abs(state.paddle.x + state.paddle.width / 2 - launchCenter()) < 4) return true;
+  show.wait += dt;
+  return show.wait > 1.6;
+}
+// Cuando una pelota llega detrás de los ladrillos: se multiplica hasta MAX_BALLS y todas salen con fuego
+// hacia abajo, en abanico, atravesando el campo.
+function triggerBurst(source) {
+  state.show.burstDone = true;
+  state.effects.fire = 5;
+  state.balls.forEach((ball) => { ball.fire = true; });
+  const speed = Math.max(LAUNCH_SPEED * 1.1, Math.hypot(source.vx, source.vy));
+  const inward = source.x < VIEW.w / 2 ? 1 : -1;
+  const extra = Math.max(0, MAX_BALLS - state.balls.length);
+  const total = extra + 1;
+  const angleOf = (k) => inward * (.12 + .95 * k / Math.max(1, total - 1));
+  source.vx = speed * Math.sin(angleOf(0)); source.vy = speed * Math.cos(angleOf(0));
+  for (let k = 1; k < total; k += 1) {
+    state.balls.push(makeBall(source.x, source.y + 4, speed * Math.sin(angleOf(k)), speed * Math.cos(angleOf(k)), false));
+  }
+  state.shake = 10;
+  state.flash = .35;
+  burst(source.x, source.y + 10, '#ffffff', 36);
+  setStatus('¡Bola múltiple!');
+}
+// En el final, la pelota sale de la paleta por un ángulo que no toca ningún ladrillo en la subida (si lo hay).
+function endAngle(angle, ball) {
+  const show = state.show;
+  if (!endPhase() || Math.random() > .85 * Math.max(0, 1 - show.endTimer / 45)) return angle;
+  const p = state.paddle;
+  const margin = BALL_RADIUS + 8;
+  let best = null;
+  for (let a = -1.15; a <= 1.15; a += .05) {
+    const t = Math.tan(a);
+    const clear = state.bricks.every((brick) => Math.abs(foldX(ball.x + t * (p.y - (brick.y + brick.h / 2))) - (brick.x + brick.w / 2)) > brick.w / 2 + margin);
+    if (clear && (best === null || Math.abs(a - angle) < Math.abs(best - angle))) best = a;
+  }
+  return best === null ? angle : best;
+}
 // Al rebotar en la paleta, la pelota sale siempre en línea recta, pero con una ligera tendencia a los bordes
 // (un poco más abierta hacia el lado en el que está), para que a veces llegue al fondo por los pasillos
 // laterales. No curva su trayectoria. La tendencia solo existe si hay pasillo libre y se apaga sola cuando
@@ -557,6 +636,9 @@ function updateBalls(dt) {
     }
     ball.x += ball.vx * dt;
     ball.y += ball.vy * dt;
+    if (MODE.auto && !state.show.burstDone && ball.vy < 0 && ball.y < state.show.topY - 4) {
+      if (state.bricks.length / state.totalBricks > .5) triggerBurst(ball); else state.show.burstDone = true;
+    }
     if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
     if (ball.x + ball.r > VIEW.w) { ball.x = VIEW.w - ball.r; ball.vx = -Math.abs(ball.vx); }
     if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = Math.abs(ball.vy); }
@@ -568,7 +650,7 @@ function updateBalls(dt) {
       else {
         const offset = clamp((ball.x - (p.x + p.width / 2)) / (p.width / 2), -.88, .88);
         const speed = clamp(Math.hypot(ball.vx, ball.vy), 230, SPEED_MAX);
-        const angle = clamp(offset * 1.05 + sideBias(ball), -1.15, 1.15);
+        const angle = endAngle(clamp(offset * 1.05 + sideBias(ball), -1.15, 1.15), ball);
         ball.vx = speed * Math.sin(angle);
         ball.vy = -speed * Math.cos(angle);
         ball.y = p.y - ball.r - 1;
@@ -631,6 +713,13 @@ function launch() {
     ball.vx = direction * speed * sideways;
     ball.vy = -speed * Math.sqrt(1 - sideways * sideways);
     direction *= -1;
+    if (i === 0 && MODE.auto && state.show.plan && !state.show.burstDone) {
+      // Lanzamiento "del guion": recta hacia el pasillo lateral que quedó libre.
+      const bottom = state.bricks.reduce((low, brick) => Math.max(low, brick.y + brick.h), 0);
+      const aim = Math.atan2(state.show.laneX - ball.x, ball.y - bottom);
+      ball.vx = speed * Math.sin(aim);
+      ball.vy = -speed * Math.cos(aim);
+    }
   });
   setStatus('En juego');
 }
@@ -651,7 +740,7 @@ function advanceLevel() {
 function updateIntro(dt) {
   movePaddle(dt); updateBalls(dt); updateParticles(dt);
   state.intro.t += dt;
-  if (state.intro.t >= state.intro.dur) { state.intro = null; launch(); }
+  if (state.intro.t >= state.intro.dur && showReady(dt)) { state.intro = null; launch(); }
 }
 const easeOut = (k) => 1 - (1 - k) ** 3;
 
@@ -757,6 +846,11 @@ function draw() {
     ctx.fillText(`Nivel ${state.level}`, VIEW.w / 2, VIEW.h * .62);
     ctx.globalAlpha = 1;
   }
+  if (state.flash > 0) {
+    ctx.globalAlpha = Math.min(.55, state.flash * 1.4);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
   drawFullscreenHud();
   // En modo automático no se muestra el cartel entre niveles o reinicios, solo la pausa manual.
@@ -798,6 +892,8 @@ function frame(timestamp) {
   if (!state.paused) {
     updateParticles(dt);
     state.shake = Math.max(0, state.shake - dt * 28);
+    state.flash = Math.max(0, state.flash - dt);
+    if (endPhase()) state.show.endTimer += dt;
   }
   draw();
   requestAnimationFrame(frame);
