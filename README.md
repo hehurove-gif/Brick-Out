@@ -21,6 +21,10 @@ Agrega parámetros a la URL para grabar el juego como fondo:
 
 Los parámetros se pueden combinar (por ejemplo `?auto&clean`). Para grabar, abre `?tiktok` en el celular o en el navegador con tamaño de ventana vertical y usa la grabación de pantalla. Con **P** pausas y con **Espacio** o un toque lanzas manualmente.
 
+En `?tiktok` y `?clean` no hay barra superior: al mover el mouse o tocar el campo aparecen dos atajos (**＋ Imagen** y **Modo normal**) que se ocultan solos a los pocos segundos, así que no salen al grabar.
+
+`?tiktok` y `?auto` siguen un guion pensado para retener: al empezar cada nivel casi siempre se abre un pasillo lateral y la pelota sube por él hasta el fondo; allí se multiplica (hasta 6 bolas) y, con fuego, limpia buena parte del nivel en pocos segundos. Al final, cuando quedan pocos ladrillos, no caen power-ups y la pelota sale de la paleta esquivándolos, cada vez menos, hasta que a los ~45 s vuelve a jugar normal para poder cerrar el nivel.
+
 ## Desplegar en Cloudflare
 
 Este proyecto es un sitio estático: no necesita funciones, base de datos, Node.js ni proceso de build. `wrangler.jsonc` publica la carpeta `public/`.
